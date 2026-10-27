@@ -28,7 +28,7 @@ from pipelines.db import connect
 app = typer.Typer(add_completion=False)
 console = Console()
 
-MIN_PER_CATEGORY = 1
+MIN_PER_CATEGORY = 5
 
 
 def _check_structure(questions: list[Question]) -> list[str]:
@@ -43,7 +43,13 @@ def _check_structure(questions: list[Question]) -> list[str]:
         if counts[category] < MIN_PER_CATEGORY:
             errors.append(f"category {category} has {counts[category]} questions")
 
+    adversarial_dir = Path("fixtures/adversarial")
     for q in questions:
+        if q.corpus == "adversarial":
+            if not q.corpus_ref:
+                errors.append(f"{q.id}: adversarial question needs corpus_ref")
+            elif not (adversarial_dir / q.corpus_ref).exists():
+                errors.append(f"{q.id}: corpus file not found: {adversarial_dir / q.corpus_ref}")
         if q.must_refuse and q.gold is not None:
             errors.append(f"{q.id}: unanswerable question must not define gold")
         if not q.must_refuse and q.category in {"calculation", "comparison"} and q.gold is None:

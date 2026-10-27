@@ -88,6 +88,7 @@ class Question(BaseModel):
     key_points: list[str] = Field(default_factory=list)
     must_refuse: bool = False
     corpus: Literal["edgar", "adversarial"] = "edgar"
+    corpus_ref: str | None = None
     rubric: dict[str, str] = Field(default_factory=dict)
     author_note: str = ""
 

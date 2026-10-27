@@ -106,11 +106,13 @@ def main(
     if not questions:
         raise typer.BadParameter("dataset is empty")
 
+    agent_impl = AGENTS[agent]()
+    judge_impl = JUDGES[judge]()
     results = asyncio.run(
         run(
             questions,
-            AGENTS[agent](),
-            JUDGES[judge](),
+            agent_impl,
+            judge_impl,
             concurrency=concurrency,
             budget_usd=budget_usd,
         )
@@ -122,8 +124,8 @@ def main(
         metrics,
         results,
         out,
-        agent=agent,
-        judge=judge,
+        agent=agent_impl.name,
+        judge=judge_impl.name,
         dataset=str(dataset),
         seed=seed,
     )

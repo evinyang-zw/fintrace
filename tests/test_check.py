@@ -21,7 +21,7 @@ def question(**overrides: object) -> Question:
 
 
 def test_valid_question_has_no_errors() -> None:
-    errors = [e for e in _check_structure([question()]) if "has 0 questions" not in e]
+    errors = [e for e in _check_structure([question()]) if "questions" not in e]
     assert errors == []
 
 
@@ -48,3 +48,28 @@ def test_missing_rubric_is_rejected() -> None:
 def test_missing_author_note_is_rejected() -> None:
     errors = _check_structure([question(author_note="")])
     assert any("author_note missing" in e for e in errors)
+
+
+def test_adversarial_question_needs_existing_corpus() -> None:
+    errors = _check_structure(
+        [question(category="adversarial", corpus="adversarial", corpus_ref="missing.html")]
+    )
+    assert any("corpus file not found" in e for e in errors)
+
+
+def test_adversarial_question_with_real_corpus_passes_corpus_check() -> None:
+    errors = _check_structure(
+        [
+            question(
+                category="adversarial",
+                corpus="adversarial",
+                corpus_ref="northwind-10k-fy2024.html",
+            )
+        ]
+    )
+    assert not any("corpus" in e for e in errors)
+
+
+def test_adversarial_question_without_ref_is_rejected() -> None:
+    errors = _check_structure([question(category="adversarial", corpus="adversarial")])
+    assert any("needs corpus_ref" in e for e in errors)
