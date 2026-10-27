@@ -18,7 +18,8 @@
 | 检索与引用（混合检索、span 校验） | W2 |
 | Agent 编排（手写 ReAct → LangGraph） | W2–W4 |
 | MCP 工具服务 | W4 |
-| 生产化（Docker / CI 门禁 / 部署） | W5 |
+| CI（GitHub Actions，含 Postgres service） | W1 完成（32s 全绿） |
+| 生产化（镜像 / 部署 / 监控） | W5 |
 
 ## W1 验收结果（2026-10-27）
 
@@ -31,6 +32,13 @@
 | 金标题 | 30 题（6 类 × 5），15 道数值题与 XBRL 逐条对账 |
 | 对抗语料 | 5 份合成文档：注入 / 单位陷阱 / 重述时点 / 实体混淆 |
 | NullAgent 基线 | 正确率 0%、引用支撑 0%、误拒率 100%——与预期一致，说明尺子本身没坏 |
+
+## 持续集成
+
+[![ci](https://github.com/evinyang-zw/fintrace/actions/workflows/ci.yml/badge.svg)](https://github.com/evinyang-zw/fintrace/actions/workflows/ci.yml)
+
+`.github/workflows/ci.yml`：ruff → mypy → pytest（带 pgvector service）→ eval smoke。
+冷启动 32 秒，全绿。
 
 ## 快速开始
 

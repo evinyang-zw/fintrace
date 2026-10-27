@@ -11,7 +11,7 @@
 | C 指标口径 | ✅ | `docs/metrics.md`（含边界情况） + `eval/metrics.py` |
 | D 评测运行器 | ✅ | `make eval` 出报告；NullAgent 可解释全零 |
 | F 对抗语料 | ✅ | `fixtures/adversarial/` 5 份合成文档 + 5 道 A1 题 |
-| E CI 骨架 | ✅ | `.github/workflows/ci.yml`：ruff + mypy strict + pytest + eval smoke |
+| E CI 骨架 | ✅ | [GitHub Actions](https://github.com/evinyang-zw/fintrace/actions/workflows/ci.yml) 全绿，32 秒；含 pgvector service 容器 |
 
 ## 关键数字
 
