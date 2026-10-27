@@ -1,0 +1,55 @@
+# FinTrace
+
+> 可审计的财报研究代理：**每一句话都有出处，每一个数字都能复算。**
+
+用中文提问，在美国上市公司公开财报里检索、计算、交叉验证，输出带逐句引用的研究简报；
+证据不足时明确拒答并说明缺什么。
+
+这不是一个"能聊财报的机器人"。它是一个**带证据链、可评测、可运维**的 Agent 系统，
+仓库里最重要的部分不是 Agent 代码，而是**用来证明 Agent 好不好的那套尺子**。
+
+## 状态
+
+| 模块 | 状态 |
+|---|---|
+| 数据摄取（EDGAR 10-K/10-Q + XBRL） | W1 进行中 |
+| 评测协议 / NullAgent / 指标 / bootstrap | W1 完成 |
+| 检索与引用（混合检索、span 校验） | W2 |
+| Agent 编排（手写 ReAct → LangGraph） | W2–W4 |
+| MCP 工具服务 | W4 |
+| 生产化（Docker / CI 门禁 / 部署） | W5 |
+
+## 快速开始
+
+```bash
+uv sync                 # 安装依赖
+make up                 # 启动 Postgres（pgvector）
+make universe           # ticker -> CIK（不手抄十位数字）
+make ingest             # 抓取并入库（首次约 10 分钟，之后走本地快照）
+make q-check            # 校验金标题（含数值对账）
+make eval               # 跑评测，生成 reports/ 下的报告
+make test               # 单元测试（不联网）
+```
+
+环境变量见 `.env.example`。SEC 要求请求头里带可联系的 User-Agent。
+
+> 国内网络拉不到 Docker Hub 时，可先 `docker pull <mirror>/pgvector/pgvector:pg17`
+> 再 `docker tag` 成本地镜像；`docker-compose.yml` 本身不需要改。
+
+## 结构
+
+```
+pipelines/            离线摄取：EDGAR -> 纯文本 -> section/chunk -> Postgres
+  sources/            DataSource 协议 + EDGAR 实现（A 股 adapter 从这里插入）
+eval/                评测：问题 schema、agent/judge 协议、指标、报告
+  agents/null.py      永远拒答的 NullAgent（用来验尺子，不是用来答题）
+tests/               单元测试 + 契约测试（CI 不联网）
+```
+
+关键设计取舍记录在 `docs/adr/`，指标口径见 `docs/metrics.md`。
+
+## 三条不可让步的规则
+
+1. **数字不经过 LLM**：所有财务数字来自 XBRL，正文只负责定性叙述。
+2. **引用到字符区间**：引用不是"某份文档"，而是 `(accession, item, char_start, char_end)`。
+3. **评测先行**：没有基线分数之前，不写 Agent。

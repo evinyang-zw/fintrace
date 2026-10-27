@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: fintrace
+          POSTGRES_PASSWORD: fintrace
+          POSTGRES_DB: fintrace
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U fintrace -d fintrace"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://fintrace:fintrace@localhost:5433/fintrace
+      SEC_USER_AGENT: "FinTrace CI ci@example.com"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Unit tests
+        run: uv run pytest -m "not live" --cov --cov-report=term-missing --cov-fail-under=55
+
+      - name: Schema + eval pipeline smoke
+        run: |
+          uv run python -m pipelines.db 2>/dev/null || true
+          uv run python -c "from pipelines.db import init_schema; from pipelines.config import Settings; init_schema(Settings.from_env().database_url)"
+          uv run python -m eval.runner --agent null --limit 3

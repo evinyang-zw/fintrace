@@ -1,0 +1,26 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# ===== Tooling =====
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ===== Local data (never commit raw filings) =====
+data/
+.env
+
+# ===== macOS =====
+.DS_Store
+
+# ===== Reports =====
+reports/

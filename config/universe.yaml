@@ -1,0 +1,15 @@
+# 公司池：4 组可比公司 + 2 家单点，见 docs/adr 与 W1 计划 §7
+source: edgar
+since: 2021-01-01
+
+tickers:
+  - {ticker: MSFT, group: cloud}
+  - {ticker: GOOGL, group: cloud}
+  - {ticker: AMZN, group: cloud}
+  - {ticker: META, group: ads}
+  - {ticker: WMT, group: retail}
+  - {ticker: COST, group: retail}
+  - {ticker: KO, group: beverage}
+  - {ticker: PEP, group: beverage}
+  - {ticker: AAPL, group: single}
+  - {ticker: NVDA, group: single}
