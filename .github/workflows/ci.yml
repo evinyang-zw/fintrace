@@ -53,6 +53,5 @@ jobs:
 
       - name: Schema + eval pipeline smoke
         run: |
-          uv run python -m pipelines.db 2>/dev/null || true
           uv run python -c "from pipelines.db import init_schema; from pipelines.config import Settings; init_schema(Settings.from_env().database_url)"
           uv run python -m eval.runner --agent null --limit 3

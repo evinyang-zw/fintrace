@@ -92,3 +92,71 @@ def test_fallback_to_full_document() -> None:
     assert sections[0].item_code == "FULL"
     assert sections[0].char_start == 0
     assert sections[0].char_end == len("This document has no item headings at all.")
+
+
+RUNNING_HEADERS = """PART I
+Item 1
+Our Business at a Glance
+3
+TABLE OF CONTENTS
+PART I
+Item 1.
+Business
+1
+Item 1A.
+Risk Factors
+9
+PART II
+Item 7.
+Management's Discussion
+20
+Item 8.
+Financial Statements
+30
+
+PART I
+Item 1
+Our Business at a Glance
+5
+ITEM 1. BUSINESS
+Microsoft is a technology company. This paragraph is long enough to represent the
+actual business section, which in a real filing runs for dozens of pages of prose.
+
+PART II
+Item 7.
+Management's Discussion and Analysis
+Revenue increased year over year. This section is also long enough to be kept.
+
+Item 8.
+Financial Statements and Supplementary Data
+The consolidated financial statements are included herein by reference.
+"""
+
+
+def test_running_page_headers_are_not_sections() -> None:
+    sections = split_sections(RUNNING_HEADERS, "10-K")
+    assert sections[0].item_code == "1"
+    assert sections[0].text.startswith("ITEM 1. BUSINESS")
+    assert {s.item_code for s in sections} >= {"1", "7", "8"}
+
+
+def test_em_dash_headings() -> None:
+    text = """PART I\u2014FINANCIAL INFORMATION
+Item 1\u2014Financial Statements
+Condensed consolidated balance sheets are presented below in this section.
+
+Item 2\u2014Management's Discussion and Analysis
+Revenue grew modestly this quarter on the back of strong demand.
+
+PART II\u2014OTHER INFORMATION
+Item 1\u2014Legal Proceedings
+We are party to various routine legal proceedings.
+"""
+    sections = split_sections(text, "10-Q")
+    assert [s.item_code for s in sections][:2] == ["I-1", "I-2"]
+
+
+def test_partial_headers_fall_back_to_full() -> None:
+    text = "Item 1\u2014Financial Statements\nshort amendment with a single item"
+    sections = split_sections(text, "10-Q/A")
+    assert sections[0].item_code == "FULL"

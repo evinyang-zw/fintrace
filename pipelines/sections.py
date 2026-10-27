@@ -5,9 +5,15 @@ Three-level strategy required by the W1 plan:
   2. per-company override file (``config/sections/{ticker}.yaml``) - later
   3. fall back to a single ``FULL`` section, marked for review
 
-The sequence selector matters: a 10-K contains its item list twice (table of
-contents, then the body). We pick the candidate sequence with the largest
-character span, which is the body, because the TOC is a few pages long.
+Two things make real 10-Ks harder than the toy example:
+
+* Every page carries a running header repeating "Item 1" and "Table of Contents".
+  So the heading regex requires punctuation after the number, and the TOC is
+  detected as a *dense cluster* of headings near the top, not by searching for a
+  literal string.
+* Headings differ per filer: ``Item 1.``, ``Item 1—``, ``PART II—OTHER
+  INFORMATION``. The regexes below cover those variants; anything still missed
+  should become a per-company override, not a cleverer universal parser.
 """
 
 from __future__ import annotations
@@ -44,19 +50,20 @@ _ITEM_ORDER_10Q = {
     "II": ["1", "1A", "2", "3", "4", "5", "6"],
 }
 
+# Punctuation after the number is mandatory: running page headers write "Item 1"
+# with no punctuation and would otherwise produce ~100 bogus candidates.
 _HEADING_RE = re.compile(
-    r"^[ \t]*item[ \t]+(\d{1,2}[A-Ca-c]?)[ \t]*[.:]?[ \t]*(.{0,160})$",
+    r"^[ \t]*item[ \t]+(\d{1,2}[A-Ca-c]?)[ \t]*[.:\u2014\u2013-][ \t]*(.{0,160})$",
     re.MULTILINE | re.IGNORECASE,
 )
 _PART_RE = re.compile(
-    r"^[ \t]*part[ \t]+(iv|iii|ii|i)[ \t]*\.?[ \t]*$",
+    r"^[ \t]*part[ \t]+(iv|iii|ii|i)\b[^\n]{0,80}$",
     re.MULTILINE | re.IGNORECASE,
 )
-_TOC_HINT_RE = re.compile(r"table\s+of\s+contents", re.IGNORECASE)
 _TOC_LINE_RE = re.compile(r"\.{4,}\s*\d+\s*$")
 
 MIN_SECTIONS = 3
-# (unused) sections may be short; only the count matters
+MIN_FIRST_SECTION = 50  # guards against a chain starting inside the TOC
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,9 +89,27 @@ def split_sections(text: str, form: str) -> list[Section]:
     is_10q = form.startswith("10-Q")
     candidates = _candidates(text, is_10q)
     selected = _longest_sequence(candidates)
+    # A chain that starts inside the table of contents has a tiny first section.
+    # Drop that candidate and re-select instead of shipping a 40-character
+    # "Item 1" that swallows the rest of the document.
+    while len(selected) >= MIN_SECTIONS and selected[1].pos - selected[0].pos < MIN_FIRST_SECTION:
+        candidates = [c for c in candidates if c.pos > selected[0].pos]
+        selected = _longest_sequence(candidates)
     if len(selected) < MIN_SECTIONS:
         return [_full_section(text)]
-    return _materialise(text, selected)
+    return [_to_section(text, index, selected) for index in range(len(selected))]
+
+
+def _to_section(text: str, index: int, selected: list[_Candidate]) -> Section:
+    candidate = selected[index]
+    end = selected[index + 1].pos if index + 1 < len(selected) else len(text)
+    return Section(
+        item_code=candidate.code,
+        heading=candidate.heading,
+        char_start=candidate.pos,
+        char_end=end,
+        text=text[candidate.pos : end],
+    )
 
 
 def _full_section(text: str) -> Section:
@@ -97,40 +122,22 @@ def _full_section(text: str) -> Section:
     )
 
 
-def _body_start(text: str) -> int:
-    """Skip the table(s) of contents at the front of the document."""
-    limit = int(len(text) * 0.4)
-    last = 0
-    for match in _TOC_HINT_RE.finditer(text, 0, limit):
-        last = match.end()
-    return last
-
-
 def _candidates(text: str, is_10q: bool) -> list[_Candidate]:
-    start = _body_start(text)
-    part_positions = [(m.start(), m.group(1)) for m in _PART_RE.finditer(text, start)]
+    parts = [(m.start(), m.group(1).upper()) for m in _PART_RE.finditer(text)]
     ranks = _rank_table(is_10q)
-
     out: list[_Candidate] = []
-    for match in _HEADING_RE.finditer(text, start):
-        item = match.group(1).upper()
+    for match in _HEADING_RE.finditer(text):
         heading = match.group(2).strip()
         if _TOC_LINE_RE.search(heading):
             continue
-        part = _part_at(part_positions, match.start()) if is_10q else None
+        item = match.group(1).upper()
+        pos = match.start()
+        part = _part_at(parts, pos) if is_10q else None
         rank = ranks.get((part, item) if is_10q else (None, item))
         if rank is None:
             continue
         code = f"{part}-{item}" if is_10q else item
-        out.append(
-            _Candidate(
-                pos=match.start(),
-                item=item,
-                rank=rank,
-                code=code,
-                heading=heading[:160],
-            )
-        )
+        out.append(_Candidate(pos=pos, item=item, rank=rank, code=code, heading=heading[:160]))
     return out
 
 
@@ -156,16 +163,17 @@ def _part_at(part_positions: list[tuple[int, str]], pos: int) -> str:
 
 
 def _longest_sequence(candidates: list[_Candidate]) -> list[_Candidate]:
-    """LIS on rank, maximising the character span covered (body over TOC).
+    """Longest strictly-increasing rank chain; ties go to the later start.
 
-    Span alone is not enough: two chains often cover the same span, and the one
-    with fewer items would win a naive tie-break, collapsing five sections into
-    "Item 1" + "Item 8". Depth breaks those ties.
+    Rank order encodes the canonical item sequence, and requiring it to increase
+    is what rejects the table of contents (whose items repeat later in the body).
+    Maximising *depth* rather than span is what keeps every item in the chain;
+    the tie-break on a later start is what prefers body headings over TOC
+    entries when both cover the same items.
     """
     if not candidates:
         return []
     n = len(candidates)
-    span = [0] * n
     depth = [1] * n
     first = [c.pos for c in candidates]
     prev = [-1] * n
@@ -173,39 +181,13 @@ def _longest_sequence(candidates: list[_Candidate]) -> list[_Candidate]:
         for j in range(i):
             if candidates[j].rank >= candidates[i].rank:
                 continue
-            candidate_span = candidates[i].pos - first[j]
-            candidate_depth = depth[j] + 1
-            better = (candidate_span, candidate_depth) > (span[i], depth[i])
-            if better:
-                span[i] = candidate_span
-                depth[i] = candidate_depth
+            if (depth[j] + 1, first[j]) > (depth[i], first[i]):
+                depth[i] = depth[j] + 1
                 first[i] = first[j]
                 prev[i] = j
-    best = max(range(n), key=lambda i: (span[i], depth[i]))
+    best = max(range(n), key=lambda i: (depth[i], first[i]))
     chain: list[_Candidate] = []
     while best != -1:
         chain.append(candidates[best])
         best = prev[best]
     return list(reversed(chain))
-
-
-def _materialise(text: str, selected: list[_Candidate]) -> list[Section]:
-    """Boundaries are the selected headings; coverage is contiguous by design.
-
-    Deliberately no minimum-length filter: 10-Ks contain one-line items (mine
-    safety, exhibit indexes) that are real sections. False positives from the
-    table of contents are already handled by sequence selection.
-    """
-    sections: list[Section] = []
-    for index, candidate in enumerate(selected):
-        end = selected[index + 1].pos if index + 1 < len(selected) else len(text)
-        sections.append(
-            Section(
-                item_code=candidate.code,
-                heading=candidate.heading,
-                char_start=candidate.pos,
-                char_end=end,
-                text=text[candidate.pos : end],
-            )
-        )
-    return sections if len(sections) >= MIN_SECTIONS else [_full_section(text)]

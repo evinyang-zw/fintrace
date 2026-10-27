@@ -1,0 +1,62 @@
+[
+  {
+    "cik": "0000789019",
+    "ticker": "MSFT",
+    "name": "MICROSOFT CORP",
+    "group": "cloud"
+  },
+  {
+    "cik": "0001652044",
+    "ticker": "GOOGL",
+    "name": "Alphabet Inc.",
+    "group": "cloud"
+  },
+  {
+    "cik": "0001018724",
+    "ticker": "AMZN",
+    "name": "AMAZON COM INC",
+    "group": "cloud"
+  },
+  {
+    "cik": "0001326801",
+    "ticker": "META",
+    "name": "Meta Platforms, Inc.",
+    "group": "ads"
+  },
+  {
+    "cik": "0000104169",
+    "ticker": "WMT",
+    "name": "Walmart Inc.",
+    "group": "retail"
+  },
+  {
+    "cik": "0000909832",
+    "ticker": "COST",
+    "name": "COSTCO WHOLESALE CORP /NEW",
+    "group": "retail"
+  },
+  {
+    "cik": "0000021344",
+    "ticker": "KO",
+    "name": "COCA COLA CO",
+    "group": "beverage"
+  },
+  {
+    "cik": "0000077476",
+    "ticker": "PEP",
+    "name": "PEPSICO INC",
+    "group": "beverage"
+  },
+  {
+    "cik": "0000320193",
+    "ticker": "AAPL",
+    "name": "Apple Inc.",
+    "group": "single"
+  },
+  {
+    "cik": "0001045810",
+    "ticker": "NVDA",
+    "name": "NVIDIA CORP",
+    "group": "single"
+  }
+]

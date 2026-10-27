@@ -8,8 +8,11 @@ and it is why ``section.char_start`` always refers to ``section.text``.
 from __future__ import annotations
 
 import re
+import warnings
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 _DROP_TAGS = ("script", "style", "noscript", "ix:header")
 _BLOCK_TAGS = (
