@@ -54,6 +54,7 @@
 uv sync                 # 安装依赖
 make up                 # 启动 Postgres（pgvector）
 make universe           # ticker -> CIK（不手抄十位数字）
+make stats              # 仓库存量：filing/section/facts/覆盖率
 make ingest             # 抓取并入库（首次约 10 分钟，之后走本地快照）
 make q-check            # 校验金标题（含数值对账）
 make eval               # 跑评测，生成 reports/ 下的报告

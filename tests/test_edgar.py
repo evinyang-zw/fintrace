@@ -85,7 +85,7 @@ def test_fetch_document_builds_archive_url(tmp_path: Path) -> None:
     from pipelines.sources.base import FilingRef
 
     filing = FilingRef(
-        accession="0000320193-24-000123",
+        doc_id="0000320193-24-000123",
         cik="0000320193",
         form="10-K",
         filed_at=date(2024, 11, 1),

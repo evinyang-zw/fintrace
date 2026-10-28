@@ -77,3 +77,35 @@ def test_rule_judge_requires_well_formed_citations() -> None:
 
     assert asyncio.run(judge.grade(q, bad)).citation_support == 0.0
     assert asyncio.run(judge.grade(q, good)).citation_support == 1.0
+
+
+class _BoomAgent:
+    name = "boom"
+
+    async def answer(self, question: Question):
+        raise RuntimeError("boom")
+
+
+async def test_fail_fast_aborts_on_error() -> None:
+    import pytest
+
+    with pytest.raises(RuntimeError):
+        await run([question("a1")], _BoomAgent(), RuleJudge(), fail_fast=True)
+
+
+async def test_without_fail_fast_skips_broken_item() -> None:
+    results = await run([question("a1")], _BoomAgent(), RuleJudge(), fail_fast=False)
+    assert results == []
+
+
+async def test_budget_guard_stops_expensive_run() -> None:
+    import pytest
+
+    class CostlyAgent:
+        name = "costly"
+
+        async def answer(self, q: Question):
+            return Answer(text="x", usage={"cost_usd": 1.0})  # type: ignore[arg-type]
+
+    with pytest.raises(RuntimeError):
+        await run([question("a1"), question("a2")], CostlyAgent(), RuleJudge(), budget_usd=0.5)

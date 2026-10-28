@@ -122,7 +122,7 @@ def _store_filing(
                   raw_sha256 = EXCLUDED.raw_sha256
             """,
             (
-                filing.accession,
+                filing.doc_id,
                 filing.cik,
                 filing.form,
                 filing.period_end,
@@ -132,8 +132,8 @@ def _store_filing(
                 raw_sha256,
             ),
         )
-        conn.execute("DELETE FROM chunks WHERE accession = %s", (filing.accession,))
-        conn.execute("DELETE FROM sections WHERE accession = %s", (filing.accession,))
+        conn.execute("DELETE FROM chunks WHERE accession = %s", (filing.doc_id,))
+        conn.execute("DELETE FROM sections WHERE accession = %s", (filing.doc_id,))
         for section in sections:
             conn.execute(
                 """
@@ -141,7 +141,7 @@ def _store_filing(
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    filing.accession,
+                    filing.doc_id,
                     section.item_code,
                     section.heading,
                     section.char_start,
@@ -152,11 +152,13 @@ def _store_filing(
             for chunk in chunk_text(section.text):
                 conn.execute(
                     """
-                    INSERT INTO chunks (accession, item_code, char_start, char_end, text, n_tokens)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO chunks (accession, filed_at, item_code, char_start,
+                                        char_end, text, n_tokens)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
-                        filing.accession,
+                        filing.doc_id,
+                        filing.filed_at,
                         section.item_code,
                         section.char_start + chunk.char_start,
                         section.char_start + chunk.char_end,
@@ -205,8 +207,13 @@ def main(
             )
             reports.append(report)
 
-    _write_report(reports, settings, fetcher.fetched, fetcher.cached)
+    totals = _warehouse_totals(settings.database_url)
+    _write_report(reports, settings, fetcher.fetched, fetcher.cached, totals)
     _print_summary(console, reports)
+    console.print(
+        f"[dim]warehouse: {totals['filings']:,} filings / {totals['sections']:,} sections / "
+        f"{totals['facts']:,} facts / coverage {totals['coverage']:.0%}[/dim]"
+    )
 
 
 def _ingest_company(
@@ -238,10 +245,8 @@ def _ingest_company(
 
     # One query instead of one connection per filing: the skip path is the
     # common path on a warm warehouse, so it should be cheap and obvious.
-    existing = (
-        set() if force else _existing_accessions(database_url, [f.accession for f in filings])
-    )
-    todo = [f for f in filings if f.accession not in existing]
+    existing = set() if force else _existing_accessions(database_url, [f.doc_id for f in filings])
+    todo = [f for f in filings if f.doc_id not in existing]
     report.filings_skipped = len(filings) - len(todo)
     console.print(
         f"  filings: [green]{len(todo)} new[/green], "
@@ -280,14 +285,48 @@ def _ingest_company(
                     report.full_only += 1
             except Exception as exc:
                 report.filings_failed += 1
-                report.errors.append(f"{filing.accession} ({filing.form}): {exc}")
+                report.errors.append(f"{filing.doc_id} ({filing.form}): {exc}")
             progress.advance(task)
 
     return report
 
 
+def _warehouse_totals(database_url: str) -> dict[str, float]:
+    """Corpus-level totals, so the report is meaningful on a no-op re-run."""
+    with connect(database_url) as conn:
+        row = conn.execute(
+            """
+            SELECT
+                (SELECT count(*) FROM filings) AS filings,
+                (SELECT count(*) FROM sections) AS sections,
+                (SELECT count(*) FROM chunks)  AS chunks,
+                (SELECT count(*) FROM facts)   AS facts
+            """
+        ).fetchone()
+        covered = conn.execute(
+            """
+            SELECT count(DISTINCT f.accession) AS n
+            FROM filings f JOIN sections s ON s.accession = f.accession
+            WHERE s.item_code <> 'FULL'
+            """
+        ).fetchone()
+    assert row is not None and covered is not None
+    filings = int(row["filings"])  # type: ignore[call-overload]
+    return {
+        "filings": filings,
+        "sections": int(row["sections"]),  # type: ignore[call-overload]
+        "chunks": int(row["chunks"]),  # type: ignore[call-overload]
+        "facts": int(row["facts"]),  # type: ignore[call-overload]
+        "coverage": (int(covered["n"]) / filings) if filings else 0.0,  # type: ignore[call-overload]
+    }
+
+
 def _write_report(
-    reports: list[CompanyReport], settings: Settings, fetched: int, cached: int
+    reports: list[CompanyReport],
+    settings: Settings,
+    fetched: int,
+    cached: int,
+    totals: dict[str, float],
 ) -> None:
     settings.report_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y-%m-%d")
@@ -295,6 +334,7 @@ def _write_report(
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "fetched_requests": fetched,
         "cache_hits": cached,
+        "warehouse": totals,
         "companies": [
             r.__dict__ | {"section_coverage": round(r.section_coverage, 3)} for r in reports
         ],

@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS sections (
 CREATE TABLE IF NOT EXISTS chunks (
     id         BIGSERIAL PRIMARY KEY,
     accession  TEXT NOT NULL REFERENCES filings (accession) ON DELETE CASCADE,
+    filed_at   DATE NOT NULL,
     item_code  TEXT NOT NULL,
     char_start INTEGER NOT NULL,
     char_end   INTEGER NOT NULL,

@@ -24,3 +24,15 @@ def init_schema(database_url: str) -> None:
     ddl = SCHEMA_PATH.read_text(encoding="utf-8")
     with connect(database_url) as conn:
         conn.execute(ddl)
+        # Compatibility for warehouses created before W1 closed: chunks gained a
+        # filed_at column so point-in-time filters never have to join filings.
+        conn.execute("ALTER TABLE chunks ADD COLUMN IF NOT EXISTS filed_at DATE")
+        conn.execute(
+            """
+            UPDATE chunks
+            SET filed_at = f.filed_at
+            FROM filings f
+            WHERE chunks.accession = f.accession AND chunks.filed_at IS NULL
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS chunks_filed_idx ON chunks (filed_at)")

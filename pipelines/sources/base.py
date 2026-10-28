@@ -23,7 +23,9 @@ class CompanyRef:
 
 @dataclass(frozen=True, slots=True)
 class FilingRef:
-    accession: str
+    # A document id, not an EDGAR accession: the protocol must stay source-neutral
+    # so an A-share adapter can plug in without renaming anything.
+    doc_id: str
     cik: str
     form: str
     filed_at: date

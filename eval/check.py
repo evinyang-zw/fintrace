@@ -13,6 +13,7 @@ for a week.
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any, cast
@@ -29,6 +30,10 @@ app = typer.Typer(add_completion=False)
 console = Console()
 
 MIN_PER_CATEGORY = 5
+
+_CITATION_RE = re.compile(
+    r"^(?P<ticker>[A-Z]{1,6})/(?P<form>10-[KQ](?:/A)?)/(?P<fy>FY\d{4})#(?P<item>\d{1,2}[A-C]?)$"
+)
 
 
 def _check_structure(questions: list[Question]) -> list[str]:
@@ -71,6 +76,42 @@ def _latest_values(conn: Any, cik: str, tag: str, period_end: Any) -> list[float
         (cik, tag, period_end),
     ).fetchall()
     return [float(cast(Any, row["value"])) for row in rows]
+
+
+def _check_citations(questions: list[Question], database_url: str) -> list[str]:
+    """Every citation must point at a real, non-empty section in the corpus."""
+    errors: list[str] = []
+    targets = [
+        (q.id, citation)
+        for q in questions
+        if q.corpus == "edgar"
+        for citation in q.required_citations
+    ]
+    if not targets:
+        return errors
+    try:
+        with connect(database_url) as conn:
+            for question_id, raw in targets:
+                match = _CITATION_RE.match(raw)
+                if match is None:
+                    errors.append(f"{question_id}: citation is not canonical: {raw!r}")
+                    continue
+                row = conn.execute(
+                    """
+                    SELECT count(*) AS n
+                    FROM sections s
+                    JOIN filings f ON f.accession = s.accession
+                    JOIN companies c ON c.cik = f.cik
+                    WHERE c.ticker = %s AND f.form = %s AND s.item_code = %s
+                      AND length(s.text) > 0
+                    """,
+                    (match["ticker"], match["form"], match["item"]),
+                ).fetchone()
+                if row is None or int(cast(Any, row["n"])) == 0:
+                    errors.append(f"{question_id}: cited section not found: {raw}")
+    except Exception as exc:
+        console.print(f"[yellow]skip citation check: database unavailable ({exc})[/yellow]")
+    return errors
 
 
 def _check_ledger(questions: list[Question], database_url: str) -> list[str]:
@@ -131,11 +172,14 @@ def _check_ledger(questions: list[Question], database_url: str) -> list[str]:
 def main(
     dataset: Path = typer.Option(DEFAULT_DATASET),
     skip_ledger: bool = typer.Option(False, "--skip-ledger", help="不连数据库做数值对账"),
+    skip_citations: bool = typer.Option(False, "--skip-citations", help="不连数据库校验引用"),
 ) -> None:
     questions = load_dataset(dataset)
     errors = _check_structure(questions)
     if not skip_ledger:
         errors += _check_ledger(questions, Settings.from_env().database_url)
+    if not skip_citations:
+        errors += _check_citations(questions, Settings.from_env().database_url)
 
     if errors:
         console.print(f"[red]✗ {len(errors)} problem(s)[/red]")

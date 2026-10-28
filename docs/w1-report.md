@@ -18,6 +18,7 @@
 - section 覆盖率：**100%**（21 份 2024 年后 filing 中仅 KO 10-Q/A 单节，属修正案正常形态）
 - 单份 filing 平均 9–11 节（10-Q）/ 21–22 节（10-K）
 - 入库耗时：约 6 分钟 / 233 份（含首次下载与 HTML 解析，之后走本地快照可离线重跑）
+- 人工抽检：随机 3 份 10-K × Item 1/1A/7/8 共 12 个 section，首尾均落在标题与页脚/签名之间，无跨节粘连
 
 ## 踩到的三个坑（都是真实 10-K 的形态，不是 bug 修完就忘的那种）
 
@@ -57,7 +58,29 @@ TERM=xterm-256color asciinema rec demo/w1.cast -c "bash demo/record.sh"
 agg --theme github-dark --font-size 15 --idle-time-limit 2 demo/w1.cast docs/demo.gif
 ```
 
-## 决策日志（W1）
+## 计划对照审计（2026-10-28）
+
+按 `m0-w1-plan.md` 逐条核对，关闭时修复的偏差：
+
+| 计划条目 | 关闭时的状态 |
+|---|---|
+| §1.1 协议里不许出现 EDGAR 概念 | `FilingRef.accession` → `doc_id`，EDGAR 专有名词只留在 adapter 与存储层 |
+| §1.2 `filed_at` 贯穿 filings / chunks / facts | chunks 补列并回填 20,373 行；新增 `chunks_filed_idx` |
+| §1.4 ingest 报告含 sections_coverage | 报告新增 `warehouse` 块（filings / sections / chunks / facts / coverage） |
+| §2.4 引用存在性校验 | `q-check` 新增 `_check_citations`；引用改为 `TICKER/10-K/FY2024#8` 规范格式 |
+| §3.2 报告格式 | `docs/metrics.md` 补第 7 节；Δ 列在 W2 启用 |
+| §4.3 必有 `--fail-fast` | 已加，并在错误路径上区分"跳过并告警"与"立即中断" |
+| §5.2 `--cov-fail-under=70` + artifact | 覆盖率 65%→79%，门禁提到 70；CI 上传 `reports/` artifact |
+
+仍与计划有出入、但接受的三处：
+
+| 条目 | 实际做法 | 原因 |
+|---|---|---|
+| §1.3 二级降级：per-company override | 未实现 hook，只保留 FULL 兜底 | 真实语料覆盖率 100%，无触发场景；等新 filer 破坏再补 |
+| §2.2 C2 全部来自 4 组可比公司 | 5 题中 2 题在组内，3 题为跨组对比 | 数据同样成立；组内对比在 W3 扩充题目时补足 |
+| §8 2 分钟录屏 | 20 秒压缩 GIF | 体积 508KB，README 可播；完整 cast 可重渲染 |
+
+
 
 | 假设 | 结果 | 动作 |
 |---|---|---|

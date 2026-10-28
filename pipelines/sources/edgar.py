@@ -70,7 +70,7 @@ class EdgarSource:
                 continue
             filings.append(
                 FilingRef(
-                    accession=str(row["accessionNumber"]),
+                    doc_id=str(row["accessionNumber"]),
                     cik=company.cik,
                     form=form,
                     filed_at=filed_at,
@@ -78,20 +78,20 @@ class EdgarSource:
                     primary_doc=str(row.get("primaryDocument", "")),
                 )
             )
-        filings.sort(key=lambda f: (f.filed_at, f.accession))
+        filings.sort(key=lambda f: (f.filed_at, f.doc_id))
         return filings
 
     # -- documents ---------------------------------------------------------
 
     def fetch_document(self, filing: FilingRef) -> RawDoc:
         if not filing.primary_doc:
-            raise ValueError(f"filing {filing.accession} has no primary document")
+            raise ValueError(f"filing {filing.doc_id} has no primary document")
         url = ARCHIVE_URL.format(
             cik_int=int(filing.cik),
-            accession=filing.accession.replace("-", ""),
+            accession=filing.doc_id.replace("-", ""),
             doc=filing.primary_doc,
         )
-        cache_path = self._raw_dir / filing.cik / f"{filing.accession}.html"
+        cache_path = self._raw_dir / filing.cik / f"{filing.doc_id}.html"
         html = self._fetcher.get_text(url, cache_path)
         return RawDoc(url=url, path=cache_path, sha256=sha256_text(html), html=html)
 

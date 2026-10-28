@@ -45,25 +45,39 @@ async def run(
     *,
     concurrency: int = 4,
     budget_usd: float | None = None,
+    fail_fast: bool = False,
 ) -> list[ItemResult]:
     semaphore = asyncio.Semaphore(concurrency)
     spent = 0.0
+    failures: list[str] = []
 
-    async def one(question: Question) -> ItemResult:
+    async def one(question: Question) -> ItemResult | None:
         nonlocal spent
         async with semaphore:
-            answer = await agent.answer(question)
-            spent += answer.usage.cost_usd
-            grade = await judge.grade(question, answer)
+            try:
+                answer = await agent.answer(question)
+                spent += answer.usage.cost_usd
+                grade = await judge.grade(question, answer)
+            except Exception as exc:
+                if fail_fast:
+                    raise
+                failures.append(f"{question.id}: {exc}")
+                return None
             return ItemResult(question=question, answer=answer, grade=grade)
 
     results: list[ItemResult] = []
     for coroutine in asyncio.as_completed([one(q) for q in questions]):
-        results.append(await coroutine)
+        result = await coroutine
+        if result is not None:
+            results.append(result)
         if budget_usd is not None and spent > budget_usd:
             raise RuntimeError(f"budget exceeded: spent ${spent:.4f} > ${budget_usd:.2f}")
     order = {q.id: i for i, q in enumerate(questions)}
     results.sort(key=lambda r: order[r.question.id])
+    if failures:
+        print(f"warnings: {len(failures)} item(s) failed and were skipped")
+        for failure in failures[:10]:
+            print(f"  - {failure}")
     return results
 
 
@@ -89,6 +103,7 @@ def main(
     limit: int = typer.Option(0, help="只跑前 N 题，0 为全部"),
     concurrency: int = typer.Option(4, help="并发数"),
     budget_usd: float = typer.Option(5.0, help="成本熔断（美元）"),
+    fail_fast: bool = typer.Option(False, "--fail-fast", help="任一题报错立即退出"),
     out: Path = typer.Option(DEFAULT_OUT, help="报告输出目录"),
     seed: int = typer.Option(0, help="bootstrap 随机种子"),
 ) -> None:
@@ -115,6 +130,7 @@ def main(
             judge_impl,
             concurrency=concurrency,
             budget_usd=budget_usd,
+            fail_fast=fail_fast,
         )
     )
     metrics = aggregate(results)
