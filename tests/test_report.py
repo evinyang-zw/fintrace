@@ -88,3 +88,18 @@ def test_write_reports_roundtrip(tmp_path) -> None:
     assert payload["agent"] == "null"
     assert payload["metrics"]["n"] == 2
     assert [item["id"] for item in payload["items"]] == ["a1", "r1"]
+
+
+def test_report_structure_matches_the_documented_contract() -> None:
+    items = results()
+    markdown = render_markdown(
+        aggregate(items), items, agent="null", judge="rule-stub", dataset="x.jsonl"
+    )
+    # header metadata (not a section)
+    for key in ("数据集：", "判官：", "生成时间：", "说明："):
+        assert key in markdown
+    # exactly three body sections, in order
+    headings = [line for line in markdown.splitlines() if line.startswith("## ")]
+    assert headings == ["## 总览", "## 分类别", "## 失败样本"]
+    # W1 has no baseline column yet
+    assert "基线" not in markdown
