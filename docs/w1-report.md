@@ -48,6 +48,15 @@ COST 用 `Item 1—Financial Statements`（破折号），META 的分部标题�
 
 `make q-check` 会校验每道 A1 题的 `corpus_ref` 指向真实存在的文件。
 
+## 演示
+
+`docs/demo.gif`（20 秒）由 `demo/w1.cast` 渲染，录制脚本 `demo/record.sh`：
+
+```bash
+TERM=xterm-256color asciinema rec demo/w1.cast -c "bash demo/record.sh"
+agg --theme github-dark --font-size 15 --idle-time-limit 2 demo/w1.cast docs/demo.gif
+```
+
 ## 决策日志（W1）
 
 | 假设 | 结果 | 动作 |

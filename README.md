@@ -33,6 +33,14 @@
 | 对抗语料 | 5 份合成文档：注入 / 单位陷阱 / 重述时点 / 实体混淆 |
 | NullAgent 基线 | 正确率 0%、引用支撑 0%、误拒率 100%——与预期一致，说明尺子本身没坏 |
 
+## 演示
+
+![W1 demo](docs/demo.gif)
+
+20 秒真实终端录制（`agg` 压掉了等待时间）：`make stats` → `make ingest`（幂等跳过）
+→ `make q-check`（30 题 + XBRL 对账）→ `make eval`（零基线）。
+可重录：`bash demo/record.sh`。
+
 ## 持续集成
 
 [![ci](https://github.com/evinyang-zw/fintrace/actions/workflows/ci.yml/badge.svg)](https://github.com/evinyang-zw/fintrace/actions/workflows/ci.yml)

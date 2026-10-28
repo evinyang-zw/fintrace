@@ -13,7 +13,6 @@ from datetime import date, datetime
 from pathlib import Path
 
 import typer
-from psycopg import Connection
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -41,6 +40,7 @@ class CompanyReport:
     ticker: str
     filings_seen: int = 0
     filings_ingested: int = 0
+    filings_skipped: int = 0
     filings_failed: int = 0
     sections: int = 0
     full_only: int = 0
@@ -53,11 +53,15 @@ class CompanyReport:
         return 1.0 - (self.full_only / self.filings_ingested) if self.filings_ingested else 0.0
 
 
-def _already_ingested(conn: Connection[dict[str, object]], accession: str) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM sections WHERE accession = %s LIMIT 1", (accession,)
-    ).fetchone()
-    return row is not None
+def _existing_accessions(database_url: str, accessions: list[str]) -> set[str]:
+    if not accessions:
+        return set()
+    with connect(database_url) as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT accession FROM sections WHERE accession = ANY(%s)",
+            (accessions,),
+        ).fetchall()
+    return {str(row["accession"]) for row in rows}
 
 
 def _insert_facts(database_url: str, facts: list[Fact]) -> int:
@@ -232,6 +236,20 @@ def _ingest_company(
         console.print("  [yellow]no filings found[/yellow]")
         return report
 
+    # One query instead of one connection per filing: the skip path is the
+    # common path on a warm warehouse, so it should be cheap and obvious.
+    existing = (
+        set() if force else _existing_accessions(database_url, [f.accession for f in filings])
+    )
+    todo = [f for f in filings if f.accession not in existing]
+    report.filings_skipped = len(filings) - len(todo)
+    console.print(
+        f"  filings: [green]{len(todo)} new[/green], "
+        f"[dim]{report.filings_skipped} skipped (already ingested)[/dim]"
+    )
+    if not todo:
+        return report
+
     with Progress(
         SpinnerColumn(),
         TextColumn("{task.description}"),
@@ -240,13 +258,10 @@ def _ingest_company(
         console=console,
         transient=True,
     ) as progress:
-        task = progress.add_task(f"  {company.ticker} filings", total=len(filings))
-        for filing in filings:
+        task = progress.add_task(f"  {company.ticker} filings", total=len(todo))
+        for filing in todo:
             progress.update(task, description=f"  {company.ticker} {filing.form} {filing.filed_at}")
             try:
-                if not force and _already_ingested_conn(database_url, filing.accession):
-                    progress.advance(task)
-                    continue
                 raw = source.fetch_document(filing)
                 text = html_to_text(raw.html)
                 sections = split_sections(text, filing.form)
@@ -271,11 +286,6 @@ def _ingest_company(
     return report
 
 
-def _already_ingested_conn(database_url: str, accession: str) -> bool:
-    with connect(database_url) as conn:
-        return _already_ingested(conn, accession)
-
-
 def _write_report(
     reports: list[CompanyReport], settings: Settings, fetched: int, cached: int
 ) -> None:
@@ -295,23 +305,34 @@ def _write_report(
 
 
 def _print_summary(console: Console, reports: list[CompanyReport]) -> None:
+    total = sum(r.filings_ingested for r in reports)
+    skipped = sum(r.filings_skipped for r in reports)
+    if total == 0:
+        console.print(
+            f"[bold]no new filings[/bold] — warehouse is up to date "
+            f"([dim]{skipped} already ingested[/dim]). Run [cyan]make stats[/cyan] for totals."
+        )
+        errors = sum(len(r.errors) for r in reports)
+        if errors:
+            console.print(f"[red]{errors} error(s)[/red]")
+        return
+
     table = Table(title="ingest summary")
-    for column in ("ticker", "filings", "sections", "coverage", "facts", "errors"):
+    for column in ("ticker", "new", "skipped", "sections", "coverage", "facts", "errors"):
         table.add_column(column, justify="right" if column != "ticker" else "left")
     for r in reports:
         table.add_row(
             r.ticker,
-            f"{r.filings_ingested}/{r.filings_seen}",
+            f"{r.filings_ingested}",
+            f"{r.filings_skipped}",
             f"{r.sections}",
-            f"{r.section_coverage:.0%}",
+            f"{r.section_coverage:.0%}" if r.filings_ingested else "—",
             f"{r.facts:,}",
             str(len(r.errors)),
         )
     console.print(table)
-    total = sum(r.filings_ingested for r in reports)
     covered = sum(r.filings_ingested - r.full_only for r in reports)
-    if total:
-        console.print(f"[bold]section coverage: {covered / total:.0%}[/bold]")
+    console.print(f"[bold]section coverage: {covered / total:.0%}[/bold] (new filings only)")
 
 
 if __name__ == "__main__":

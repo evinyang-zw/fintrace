@@ -24,6 +24,9 @@ psql: ## 进入 psql
 universe: ## 解析 ticker -> CIK，写 universe.lock.json
 	$(UV) run python -m pipelines.universe
 
+stats: ## 查看仓库存量（公司/filing/facts/覆盖率）
+	$(UV) run python -m pipelines.stats
+
 ingest: ## 抓取财报并入库
 	$(UV) run python -m pipelines.ingest
 
@@ -49,4 +52,4 @@ type: ## 类型检查
 
 check: lint type test ## 提交前全量检查
 
-.PHONY: help install up down psql universe ingest q-check eval test lint fmt type check
+.PHONY: help install up down psql universe stats ingest q-check eval test lint fmt type check
