@@ -57,7 +57,10 @@ pythonpath = ["."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-q"
-markers = ["live: requires network access"]
+markers = [
+    "live: requires network access",
+    "replay: uses recorded LLM cassettes (offline)",
+]
 
 [tool.coverage.run]
 source = ["agent", "pipelines", "eval"]

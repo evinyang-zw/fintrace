@@ -78,7 +78,7 @@ make q-check            # 校验金标题（含数值对账）
 make ask Q="苹果 FY2024 总营收？" UNIVERSE=AAPL   # 单题调试，打印 trace
 make eval AGENT=react ARGS="--judge deterministic"  # 跑基线
 make trace              # Streamlit 回看某次运行（引用可高亮原文）
-make test               # 单元测试（不联网）
+make test               # 单元测试（含 3 题离线回放；不联网）
 ```
 
 环境变量见 `.env.example`。SEC 要求请求头里带可联系的 User-Agent。

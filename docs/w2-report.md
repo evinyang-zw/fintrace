@@ -13,7 +13,7 @@
 
 | # | 交付物 | 状态 | 证据 |
 |---|---|---|---|
-| A | LLM 接入与回放 | ✅ | `agent/llm.py`（httpx + 思考开关 + 峰谷计价）；`tests/test_llm.py` 录制/回放/miss 全过 |
+| A | LLM 接入与回放 | ✅ | `agent/llm.py`（httpx + 思考开关 + 峰谷计价）；`tests/test_llm.py` 录制/回放/miss 全过；3 道 A1 题可离线重放（`tests/test_replay.py`） |
 | B | 工具层 v0 | ✅ | 4 个工具 + 句柄账本；对抗语料入库（`make ingest-fixtures`，5 份文档） |
 | C | 手写 ReAct | ✅ | `agent/react.py`：7 步上限、预算、重复调用、JSON 修复、上下文裁剪 |
 | D | 朴素 RAG | ✅ | BM25 + `filed_at` 时点过滤 + 组内去重；句柄 K1..Kn |
@@ -197,8 +197,9 @@ seed 0 的 95% CI：`[85.0, 100.0]`（n=20，配对 bootstrap 1000 次）。
 - [x] 引用可点回原文，高亮区间与 `char_start–char_end` 一致（Streamlit 页）
 - [x] A1 五题全部命中 fixture 语料，注入未被执行
 - [x] 判分器表驱动测试（7 组）
-- [ ] CI 离线回放 3 题 —— **未做**：回放要求 prompt 与工具观察逐字节一致，
-      而 CI 的空库会改变观察值；W3 用 fixtures 固定语料后再接
+- [x] CI 离线回放 3 题 —— `tests/test_replay.py`（a1-001 / a1-003 / a1-005）：
+      先灌 fixtures，再以 `FINTRACE_LLM_MODE=replay` 跑，不联网、0 成本；
+      已在空库上验证（模拟 CI）
 - [x] 失败归因表 30 行
 - [x] `docs/adr/ADR-002-handwritten-react.md`
 - [x] README 状态表推进到 W2
