@@ -52,4 +52,7 @@ type: ## 类型检查
 
 check: lint type test ## 提交前全量检查
 
-.PHONY: help install up down psql universe stats ingest q-check eval test lint fmt type check
+pricing: ## 校验单价表（峰谷/缓存规则 + served model 对齐）
+	$(UV) run python -m agent.pricing
+
+.PHONY: help install up down psql universe stats ingest q-check eval test lint fmt type check pricing

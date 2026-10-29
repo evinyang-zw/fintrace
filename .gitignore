@@ -24,3 +24,6 @@ data/
 
 # ===== Reports =====
 reports/
+
+# ===== Editor =====
+.vscode/

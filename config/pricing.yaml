@@ -1,0 +1,22 @@
+# 单价：美元（USD）/ 每百万 token。数据来自官方定价页，2026-10-29 抓取。
+# https://api-docs.deepseek.com/quick_start/pricing/
+# 表中为高峰价；空闲时段统一 ×0.5（官方规则，三类价格各自减半）。
+# 三类价格彼此独立：缓存命中价与未命中价没有固定倍率关系。
+# 高峰：周一至周五（不含中国法定节假日）09:00-12:00、14:00-18:00（北京时间），
+# 等价于 UTC 01:00-04:00、06:00-10:00。
+version: "2026-10-29"
+currency: USD
+timezone: Asia/Shanghai
+peak_windows:
+  - "09:00-12:00"
+  - "14:00-18:00"
+off_peak_multiplier: 0.5
+models:
+  deepseek-flash:
+    input_hit_per_mtok: 0.006
+    input_miss_per_mtok: 0.3
+    output_per_mtok: 1.2
+  deepseek-v4-pro:
+    input_hit_per_mtok: 0.044
+    input_miss_per_mtok: 1.32
+    output_per_mtok: 3.96

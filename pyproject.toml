@@ -10,6 +10,7 @@ dependencies = [
     "psycopg[binary,pool]>=3.2.3",
     "pydantic>=2.9.2",
     "python-dateutil>=2.9.0.post0",
+    "python-dotenv>=1.0.1",
     "pyyaml>=6.0.2",
     "rich>=13.9.2",
     "typer>=0.12.5",
@@ -44,7 +45,7 @@ ignore = ["E501", "RUF001", "RUF002", "RUF003"]
 python_version = "3.12"
 strict = true
 warn_unreachable = true
-files = ["pipelines", "eval"]
+files = ["agent", "pipelines", "eval"]
 
 [[tool.mypy.overrides]]
 module = ["bs4.*", "lxml.*"]
@@ -58,7 +59,7 @@ addopts = "-q"
 markers = ["live: requires network access"]
 
 [tool.coverage.run]
-source = ["pipelines", "eval"]
+source = ["agent", "pipelines", "eval"]
 
 [tool.coverage.report]
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", 'raise NotImplementedError']
