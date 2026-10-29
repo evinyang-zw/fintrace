@@ -42,6 +42,7 @@ class Settings:
     llm_model: str = DEFAULT_LLM_MODEL
     llm_api_key: str = ""
     llm_temperature: float = 0.0
+    llm_thinking: str = "disabled"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -62,6 +63,7 @@ class Settings:
             # as an alias so the DeepSeek-specific name also works.
             llm_api_key=pick("LLM_API_KEY") or pick("DEEPSEEK_API_KEY"),
             llm_temperature=_as_float("LLM_TEMPERATURE", pick("LLM_TEMPERATURE", "0")),
+            llm_thinking=pick("LLM_THINKING", "disabled"),
         )
 
     @property

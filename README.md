@@ -15,11 +15,28 @@
 | 数据摄取（EDGAR 10-K/10-Q + XBRL） | W1 完成 |
 | 评测协议 / NullAgent / 指标 / bootstrap | W1 完成 |
 | 金标题（6 类 × 5 题） | W1 完成（30/30，数值全部对账） |
-| 检索与引用（混合检索、span 校验） | W2 |
-| Agent 编排（手写 ReAct → LangGraph） | W2–W4 |
+| 检索与引用（BM25 基线） | W2 完成；混合检索 W3 |
+| Agent 编排（手写 ReAct） | W2 完成；LangGraph 版 W4 |
+| 确定性判分 / trace 回看 | W2 完成 |
 | MCP 工具服务 | W4 |
-| CI（GitHub Actions，含 Postgres service） | W1 完成（32s 全绿） |
+| CI（GitHub Actions，含 Postgres service） | W1 完成，W2 加 fixtures 冒烟 |
 | 生产化（镜像 / 部署 / 监控） | W5 |
+
+## W2 基线（2026-10-29）
+
+手写 ReAct + BM25 + XBRL 工具，30 题金标、两次独立运行：
+
+| 指标 | seed 0 | seed 1 |
+|---|---|---|
+| 答案正确率（20 计分题） | 95.0% | 100% |
+| 引用支撑率 | 92.0% | 84.0% |
+| 数值准确率 | 90.0% | 100% |
+| 拒答召回 / 误拒率 | 100% / 8% | 100% / 16% |
+| 单题成本 / p95 延迟 | $0.0011 / 22s | $0.0011 |
+
+**但计分集合是 XBRL 可直接解决的题**：20 道里 15 道有结构化数字。
+真正的短板是检索类（F2 多跳）——5 题里 2 题拒答、3 题关键点覆盖 0.30–0.56，实质 0/5。
+W3 的重点因此是语义判官 + 混合检索，而不是继续刷总分。详见 `docs/w2-report.md`。
 
 ## W1 验收结果（2026-10-27）
 
@@ -56,8 +73,11 @@ make up                 # 启动 Postgres（pgvector）
 make universe           # ticker -> CIK（不手抄十位数字）
 make stats              # 仓库存量：filing/section/facts/覆盖率
 make ingest             # 抓取并入库（首次约 10 分钟，之后走本地快照）
+make ingest-fixtures    # 对抗语料入库（A1 五题的前置）
 make q-check            # 校验金标题（含数值对账）
-make eval               # 跑评测，生成 reports/ 下的报告
+make ask Q="苹果 FY2024 总营收？" UNIVERSE=AAPL   # 单题调试，打印 trace
+make eval AGENT=react ARGS="--judge deterministic"  # 跑基线
+make trace              # Streamlit 回看某次运行（引用可高亮原文）
 make test               # 单元测试（不联网）
 ```
 
@@ -71,9 +91,12 @@ make test               # 单元测试（不联网）
 ```
 pipelines/            离线摄取：EDGAR -> 纯文本 -> section/chunk -> Postgres
   sources/            DataSource 协议 + EDGAR 实现（A 股 adapter 从这里插入）
-eval/                评测：问题 schema、agent/judge 协议、指标、报告
+  fixtures.py         对抗语料入库（与真实语料同一套解析器）
+agent/                手写 ReAct：llm / tools / prompts / react / trace / pricing
+eval/                 评测：问题 schema、agent/judge 协议、指标、确定性判分、报告
   agents/null.py      永远拒答的 NullAgent（用来验尺子，不是用来答题）
-tests/               单元测试 + 契约测试（CI 不联网）
+web/trace_app.py      Streamlit 回看页：时间线 + 引用高亮
+tests/                单元测试 + 契约测试（CI 不联网）
 ```
 
 关键设计取舍记录在 `docs/adr/`，指标口径见 `docs/metrics.md`。

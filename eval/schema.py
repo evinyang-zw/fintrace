@@ -53,6 +53,9 @@ class Usage(BaseModel):
 class Answer(BaseModel):
     text: str
     citations: list[Citation] = Field(default_factory=list)
+    # Every span the agent actually saw. A citation is only honest if it is also
+    # in here; the judge checks that, so a fabricated reference cannot pass.
+    evidence: list[Citation] = Field(default_factory=list)
     refused: bool = False
     refusal_reason: str | None = None
     usage: Usage = Field(default_factory=Usage)

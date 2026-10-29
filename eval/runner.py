@@ -4,23 +4,33 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
+from agent.react import ReactAgent
 from eval.agents.null import NullAgent
+from eval.graders import DeterministicJudge
 from eval.judge import RuleJudge
 from eval.metrics import ItemResult, Metrics, aggregate
 from eval.report import write_reports
 from eval.schema import Agent, Judge, Question
+from pipelines.config import Settings
 
 DEFAULT_DATASET = Path("eval/datasets/gold_v0.jsonl")
 DEFAULT_OUT = Path("reports")
 
-AGENTS: dict[str, type[Agent]] = {"null": NullAgent}
-JUDGES: dict[str, type[Judge]] = {"rule": RuleJudge}
+AGENTS: dict[str, Callable[[], Agent]] = {
+    "null": NullAgent,
+    "react": lambda: ReactAgent(Settings.from_env()),
+}
+JUDGES: dict[str, Callable[[], Judge]] = {
+    "rule": RuleJudge,
+    "deterministic": lambda: DeterministicJudge(Settings.from_env()),
+}
 
 app = typer.Typer(add_completion=False)
 
@@ -106,6 +116,7 @@ def main(
     fail_fast: bool = typer.Option(False, "--fail-fast", help="任一题报错立即退出"),
     out: Path = typer.Option(DEFAULT_OUT, help="报告输出目录"),
     seed: int = typer.Option(0, help="bootstrap 随机种子"),
+    baseline: Path | None = typer.Option(None, help="上一次报告的 JSON，用于 Δ 列"),
 ) -> None:
     console = Console()
     if agent not in AGENTS:
@@ -121,6 +132,10 @@ def main(
     if not questions:
         raise typer.BadParameter("dataset is empty")
 
+    if agent not in AGENTS:
+        raise typer.BadParameter(f"unknown agent: {agent} (available: {sorted(AGENTS)})")
+    if judge not in JUDGES:
+        raise typer.BadParameter(f"unknown judge: {judge} (available: {sorted(JUDGES)})")
     agent_impl = AGENTS[agent]()
     judge_impl = JUDGES[judge]()
     results = asyncio.run(
@@ -136,6 +151,19 @@ def main(
     metrics = aggregate(results)
     print_summary(console, metrics)
 
+    settings = Settings.from_env()
+    meta = (
+        {"model": settings.llm_model, "thinking": settings.llm_thinking} if agent == "react" else {}
+    )
+    baseline_metrics: dict[str, float] | None = None
+    if baseline is not None:
+        raw = json.loads(baseline.read_text(encoding="utf-8"))
+        baseline_metrics = {
+            key: float(value)
+            for key, value in raw.get("metrics", {}).items()
+            if isinstance(value, int | float)
+        }
+
     md_path, json_path = write_reports(
         metrics,
         results,
@@ -144,6 +172,8 @@ def main(
         judge=judge_impl.name,
         dataset=str(dataset),
         seed=seed,
+        meta=meta,
+        baseline=baseline_metrics,
     )
     console.print(f"[green]✓[/green] {md_path}")
     console.print(f"[green]✓[/green] {json_path}")

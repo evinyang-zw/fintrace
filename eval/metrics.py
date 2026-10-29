@@ -29,6 +29,7 @@ class ItemResult:
 class CategoryMetrics:
     n: int
     answered: int
+    scored: int
     correctness: float
     citation_support: float
 
@@ -37,6 +38,7 @@ class CategoryMetrics:
 class Metrics:
     n: int
     answerable: int
+    scored: int
     unanswerable: int
     correctness: float
     mean_score: float
@@ -70,8 +72,9 @@ def aggregate(results: list[ItemResult]) -> Metrics:
     return Metrics(
         n=n,
         answerable=len(answerable),
+        scored=len(scores),
         unanswerable=len(unanswerable),
-        correctness=_ratio(correct, len(answerable)),
+        correctness=_ratio(correct, len(scores)),
         mean_score=mean_score,
         citation_support=_ratio(citation_numerator, len(answerable)),
         numeric_accuracy=_ratio(numeric_ok, len(numeric)),
@@ -97,6 +100,7 @@ def _by_category(results: list[ItemResult]) -> dict[str, CategoryMetrics]:
         out[category] = CategoryMetrics(
             n=len(subset),
             answered=sum(1 for r in subset if not r.answer.refused),
+            scored=len(scores),
             correctness=_ratio(sum(1 for s in scores if s >= 1), len(answerable)),
             citation_support=_ratio(
                 sum(1 for r in answerable if r.grade.citation_support >= 1.0),

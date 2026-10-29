@@ -51,9 +51,13 @@ jobs:
       - name: Unit tests
         run: uv run pytest -m "not live" --cov --cov-report=term-missing --cov-fail-under=70
 
-      - name: Schema + eval pipeline smoke
+      - name: Config sanity (pricing table)
+        run: uv run python -m agent.pricing
+
+      - name: Schema + fixtures + eval pipeline smoke
         run: |
           uv run python -c "from pipelines.db import init_schema; from pipelines.config import Settings; init_schema(Settings.from_env().database_url)"
+          uv run python -m pipelines.fixtures
           uv run python -m eval.runner --agent null --limit 3
 
       - name: Upload eval report

@@ -2,6 +2,8 @@
 SHELL := /bin/bash
 
 UV ?= uv
+AGENT ?= null
+ARGS ?=
 DATABASE_URL ?= postgresql://fintrace:fintrace@localhost:5433/fintrace
 export DATABASE_URL
 
@@ -33,8 +35,17 @@ ingest: ## 抓取财报并入库
 q-check: ## 校验评测集（schema + 数值对账）
 	$(UV) run python -m eval.check
 
-eval: ## 跑评测（默认 null agent）
-	$(UV) run python -m eval.runner --agent null
+eval: ## 跑评测（AGENT=react| judge=deterministic| ARGS="--limit 3"）
+	$(UV) run python -m eval.runner --agent $(AGENT) $(ARGS)
+
+ask: ## 问一个临时问题：make ask Q="苹果 FY2024 营收？" UNIVERSE=AAPL
+	$(UV) run python -m agent.cli "$(Q)" --universe "$${UNIVERSE:-AAPL}" $(ARGS)
+
+ingest-fixtures: ## 对抗语料入库（A1 题的前置）
+	$(UV) run python -m pipelines.fixtures
+
+trace: ## 打开 trace 回看页（Streamlit）
+	$(UV) run streamlit run web/trace_app.py
 
 test: ## 跑单元测试（不含 live）
 	$(UV) run pytest -m "not live"
@@ -55,4 +66,4 @@ check: lint type test ## 提交前全量检查
 pricing: ## 校验单价表（峰谷/缓存规则 + served model 对齐）
 	$(UV) run python -m agent.pricing
 
-.PHONY: help install up down psql universe stats ingest q-check eval test lint fmt type check pricing
+.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask trace test lint fmt type check pricing
