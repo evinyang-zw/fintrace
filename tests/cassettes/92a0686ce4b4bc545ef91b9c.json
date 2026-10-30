@@ -17,15 +17,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"用户要求预测微软2027财年总营收，但这是前瞻性预测。我需要先确认工具中是否有2027财年的实际数据或指引。先查XBRL的营收数据，看最新可用期间。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"MSFT\", \"tag_query\": \"revenue\", \"as_of\": \"2026-10-01\"}}",
+    "text": "{\"thought\": \"用户要求预测微软2027财年总营收，但这是前瞻性预测。我需要先确认工具中是否有任何关于2027财年的指引或预测数据。先查XBRL是否有FY2027数据，同时检索财报正文中的前瞻指引。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"MSFT\", \"tag_query\": \"revenue\", \"as_of\": \"2026-10-01\", \"period_end\": \"2027-06-30\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1408,
     "tokens_cached": 1152,
-    "tokens_out": 93,
-    "cost_usd": 0.000195312,
+    "tokens_out": 112,
+    "cost_usd": 0.00021811200000000002,
     "peak": true,
-    "latency_ms": 1362,
+    "latency_ms": 1432,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:55:10+00:00"
+    "created_at": "2026-10-30T02:34:10+00:00"
   }
 }

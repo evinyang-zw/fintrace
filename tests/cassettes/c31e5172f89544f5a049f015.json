@@ -17,15 +17,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"用户要预测英伟达2026财年全年营收，但as_of是2025-01-01，2026财年尚未结束，属于前瞻性预测。先查XBRL是否有已披露的2026财年数据（可能只有季度），并检索财报正文中的前瞻指引。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"NVDA\", \"tag_query\": \"revenue\", \"as_of\": \"2025-01-01\"}}",
+    "text": "{\"thought\": \"用户要预测英伟达2026财年全年营收，但as_of是2025-01-01，2026财年尚未结束，属于预测。先查XBRL是否有已披露的2026财年数据（可能只有季度），同时检索财报正文中的前瞻指引。先查XBRL营收。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"NVDA\", \"tag_query\": \"revenue\", \"as_of\": \"2025-01-01\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1410,
     "tokens_cached": 1276,
-    "tokens_out": 110,
-    "cost_usd": 0.000179856,
+    "tokens_out": 114,
+    "cost_usd": 0.00018465599999999997,
     "peak": true,
-    "latency_ms": 1241,
+    "latency_ms": 1389,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:55:33+00:00"
+    "created_at": "2026-10-30T02:33:35+00:00"
   }
 }

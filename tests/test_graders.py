@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+
 from eval.graders import (
     DeterministicJudge,
     keypoint_coverage,
@@ -102,3 +104,29 @@ async def test_unanswerable_answered_is_hallucination() -> None:
     grade = await judge.grade(question(gold=None, must_refuse=True), Answer(text="999"))
     assert grade.hallucination is True
     assert grade.correctness == 0
+
+
+@pytest.mark.parametrize(
+    ("text", "gold", "tolerance", "ratio", "expected"),
+    [
+        ("391,035 百万美元", 3.91035e11, 0.005, False, True),
+        ("3910.35 亿美元", 3.91035e11, 0.005, False, True),
+        ("$391.035 billion", 3.91035e11, 0.001, False, True),
+        ("$391.0B", 3.91035e11, 0.00001, False, False),
+        ("3.91e9", 3.91035e11, 0.005, False, False),
+        ("19.6%", 0.196, 0.005, True, True),
+        ("0.196", 0.196, 0.005, True, True),
+        ("4.2%", 0.041677, 0.005, True, True),
+        ("18.1%", 0.18145, 0.005, True, True),
+        ("1.41 倍", 1.410108, 0.005, True, True),
+        ("2.53 倍", 2.54713, 0.005, True, False),
+        ("648,125 百万", 6.48125e11, 0.001, False, True),
+        ("87,450 千美元", 8.745e7, 0.005, False, True),
+        ("99.92 亿美元", 9.992e9, 0.005, False, True),
+        ("391035000000 美元", 3.91035e11, 0.0001, False, True),
+    ],
+)
+def test_number_matrix(
+    text: str, gold: float, tolerance: float, ratio: bool, expected: bool
+) -> None:
+    assert numbers_match(text, gold, tolerance, ratio=ratio)[0] is expected

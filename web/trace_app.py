@@ -16,13 +16,11 @@ import streamlit as st
 from pipelines.config import Settings
 from pipelines.db import connect
 
-TRACE_DIR = Path("data") / "traces"
 
-
-def load_traces() -> list[Path]:
-    if not TRACE_DIR.is_dir():
+def load_traces(trace_dir: Path) -> list[Path]:
+    if not trace_dir.is_dir():
         return []
-    return sorted(TRACE_DIR.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+    return sorted(trace_dir.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
 
 
 def load_trace(path: Path) -> dict[str, Any]:
@@ -43,20 +41,32 @@ def section_text(database_url: str, accession: str, item_code: str) -> tuple[int
     return int(row["char_start"]), str(row["text"])
 
 
+def locate_span(
+    citation: dict[str, Any], section_start: int, text: str
+) -> tuple[str, str, str] | None:
+    """Return (before, hit, after) for a citation, or None if the span is invalid.
+
+    Kept separate from Streamlit so the offset maths can be unit-tested without a
+    browser: a wrong offset here would silently highlight the wrong paragraph.
+    """
+    start = int(citation["char_start"]) - section_start
+    end = int(citation["char_end"]) - section_start
+    if not (0 <= start < end <= len(text)):
+        return None
+    return text[max(0, start - 220) : start], text[start:end], text[end : end + 220]
+
+
 def render_evidence(citation: dict[str, Any], database_url: str) -> None:
     found = section_text(database_url, str(citation["accession"]), str(citation["item_code"]))
     if found is None:
         st.warning(f"找不到原文：{citation['accession']}#{citation['item_code']}")
         return
     offset, text = found
-    start = int(citation["char_start"]) - offset
-    end = int(citation["char_end"]) - offset
-    if not (0 <= start < end <= len(text)):
+    located = locate_span(citation, offset, text)
+    if located is None:
         st.warning("引用区间越界，可能来自旧版语料")
         return
-    before = text[max(0, start - 220) : start]
-    hit = text[start:end]
-    after = text[end : end + 220]
+    before, hit, after = located
     st.markdown(
         '<div style="font-size:0.85rem;line-height:1.6;white-space:pre-wrap;'
         'border-left:3px solid #888;padding-left:10px">'
@@ -70,7 +80,8 @@ def render_evidence(citation: dict[str, Any], database_url: str) -> None:
 def main() -> None:
     st.set_page_config(page_title="FinTrace trace", layout="wide")
     settings = Settings.from_env()
-    traces = load_traces()
+    trace_dir = Path(settings.data_dir) / "traces"
+    traces = load_traces(trace_dir)
     st.title("FinTrace · trace 回看")
 
     if not traces:
@@ -79,7 +90,7 @@ def main() -> None:
 
     labels = [path.name for path in traces]
     chosen = st.sidebar.selectbox("选择一次运行", labels)
-    payload = load_trace(TRACE_DIR / str(chosen))
+    payload = load_trace(trace_dir / str(chosen))
     question = payload["question"]
     answer = payload.get("answer") or {}
     meta = payload.get("meta") or {}

@@ -11,6 +11,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from agent.pricing import load_pricing
 from agent.react import ReactAgent
 from eval.agents.null import NullAgent
 from eval.graders import DeterministicJudge
@@ -109,7 +110,7 @@ def print_summary(console: Console, metrics: Metrics) -> None:
 def main(
     dataset: Path = typer.Option(DEFAULT_DATASET, help="golden dataset (jsonl)"),
     agent: str = typer.Option("null", help="agent name"),
-    judge: str = typer.Option("rule", help="judge name"),
+    judge: str = typer.Option("deterministic", help="judge name"),
     limit: int = typer.Option(0, help="只跑前 N 题，0 为全部"),
     concurrency: int = typer.Option(4, help="并发数"),
     budget_usd: float = typer.Option(5.0, help="成本熔断（美元）"),
@@ -119,10 +120,6 @@ def main(
     baseline: Path | None = typer.Option(None, help="上一次报告的 JSON，用于 Δ 列"),
 ) -> None:
     console = Console()
-    if agent not in AGENTS:
-        raise typer.BadParameter(f"unknown agent: {agent} (available: {sorted(AGENTS)})")
-    if judge not in JUDGES:
-        raise typer.BadParameter(f"unknown judge: {judge} (available: {sorted(JUDGES)})")
     if not dataset.exists():
         raise typer.BadParameter(f"dataset not found: {dataset}")
 
@@ -152,9 +149,16 @@ def main(
     print_summary(console, metrics)
 
     settings = Settings.from_env()
-    meta = (
-        {"model": settings.llm_model, "thinking": settings.llm_thinking} if agent == "react" else {}
-    )
+    meta: dict[str, str] = {}
+    if agent == "react":
+        served = [r.answer.usage.model for r in results if r.answer.usage.model]
+        # Report the *served* model (what actually ran and was billed), not the
+        # requested alias. A mismatch here silently makes reports incomparable.
+        meta = {
+            "model": max(set(served), key=served.count) if served else settings.llm_model,
+            "pricing_version": load_pricing().version,
+            "thinking": settings.llm_thinking,
+        }
     baseline_metrics: dict[str, float] | None = None
     if baseline is not None:
         raw = json.loads(baseline.read_text(encoding="utf-8"))

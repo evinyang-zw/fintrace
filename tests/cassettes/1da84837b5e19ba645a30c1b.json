@@ -17,15 +17,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"先查 XBRL 结构化数据中的毛利率（gross margin），限定 FY2024。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"NVDA\", \"tag_query\": \"gross margin\", \"as_of\": \"2024-06-30\", \"period_end\": \"2024-01-28\"}}",
+    "text": "{\"thought\": \"先查 XBRL 结构化数据中的毛利率/毛利与营收。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"NVDA\", \"tag_query\": \"gross margin\", \"as_of\": \"2024-06-30\", \"period_end\": \"2024-01-28\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1415,
     "tokens_cached": 1280,
-    "tokens_out": 81,
-    "cost_usd": 0.00014538,
+    "tokens_out": 76,
+    "cost_usd": 0.00013937999999999998,
     "peak": true,
-    "latency_ms": 1564,
+    "latency_ms": 1055,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:55:49+00:00"
+    "created_at": "2026-10-30T02:33:51+00:00"
   }
 }

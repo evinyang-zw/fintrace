@@ -17,15 +17,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"先查 XBRL 结构化数据中的毛利率相关科目（毛利与营收），限定 FY2024。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"AAPL\", \"tag_query\": \"gross margin\", \"as_of\": \"2024-12-31\", \"period_end\": \"2024-09-28\"}}",
+    "text": "{\"thought\": \"先查 XBRL 结构化数据中的毛利率相关科目（FY2024，as_of 2024-12-31）。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"AAPL\", \"tag_query\": \"gross margin\", \"as_of\": \"2024-12-31\", \"period_end\": \"2024-09-28\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1413,
     "tokens_cached": 1279,
-    "tokens_out": 83,
-    "cost_usd": 0.00014747399999999998,
+    "tokens_out": 88,
+    "cost_usd": 0.000153474,
     "peak": true,
-    "latency_ms": 1283,
+    "latency_ms": 1204,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:55:10+00:00"
+    "created_at": "2026-10-30T02:34:03+00:00"
   }
 }

@@ -25,15 +25,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"检索结果没有直接命中 AWS 成本计入哪个利润表科目及理由。FY2024 年报是 doc_id 0001018724-25-000004（K2）。需要更精确的关键词，比如 'AWS segment operating income' 或 'cost of sales' 与 'segment' 的说明。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"AWS segment operating expenses allocated cost of sales\", \"tickers\": [\"AMZN\"], \"as_of\": \"2025-06-30\", \"form\": \"10-K\", \"k\": 8}}",
+    "text": "{\"thought\": \"检索结果没有直接命中 AWS 成本计入哪个利润表科目及理由。FY2024 年报是 doc_id 0001018724-25-000004（K2）。需要更精确的关键词，比如 'AWS segment operating expenses' 或 'cost of sales AWS segment'。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"AWS segment operating expenses included in cost of sales\", \"tickers\": [\"AMZN\"], \"as_of\": \"2025-06-30\", \"form\": \"10-K\", \"k\": 8}}",
     "model": "deepseek-flash",
     "tokens_in": 2302,
     "tokens_cached": 2048,
-    "tokens_out": 131,
-    "cost_usd": 0.000245688,
+    "tokens_out": 126,
+    "cost_usd": 0.000239688,
     "peak": true,
-    "latency_ms": 1552,
+    "latency_ms": 1411,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:55:35+00:00"
+    "created_at": "2026-10-30T02:33:40+00:00"
   }
 }

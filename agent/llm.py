@@ -37,6 +37,14 @@ class LLMError(RuntimeError):
     """A call that cannot be retried into success."""
 
 
+class EmptyResponseError(LLMError):
+    """Provider returned no content (e.g. max_tokens eaten by reasoning tokens).
+
+    Separate type because this one is worth *one* retry inside the loop, while a
+    4xx or a malformed payload is not.
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class Message:
     role: Role
@@ -214,7 +222,7 @@ class OpenAICompatClient:
             raise LLMError(str(exc)) from exc
 
         if not text.strip():
-            raise LLMError(f"empty content (finish_reason={finish_reason!r})")
+            raise EmptyResponseError(f"empty content (finish_reason={finish_reason!r})")
 
         return LLMResult(
             text=text,
@@ -287,7 +295,13 @@ class CassetteClient:
             if not path.is_file():
                 raise LLMError(f"cassette miss: {path} (record it with FINTRACE_LLM_MODE=record)")
             raw = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
-            return LLMResult.from_dict(cast(dict[str, Any], raw["result"]))
+            result = LLMResult.from_dict(cast(dict[str, Any], raw["result"]))
+            if result.model != self._model:
+                raise LLMError(
+                    f"cassette served model {result.model!r} != configured {self._model!r}; "
+                    "re-record instead of silently reusing another model's trajectory"
+                )
+            return result
 
         result = await self._inner.complete(
             messages, max_tokens=max_tokens, json_mode=json_mode, temperature=temperature

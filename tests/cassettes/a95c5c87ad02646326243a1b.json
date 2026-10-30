@@ -17,15 +17,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"需要找微软 FY2024 年报中管理层对营收增长归因的表述，先用英文关键词检索正文。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"revenue growth driven by\", \"tickers\": [\"MSFT\"], \"as_of\": \"2024-12-31\", \"form\": \"10-K\", \"k\": 8}}",
+    "text": "{\"thought\": \"需要找微软 FY2024 年报中管理层对营收增长归因的表述，先用英文关键词检索正文。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"revenue growth driven by Microsoft Cloud\", \"tickers\": [\"MSFT\"], \"as_of\": \"2024-12-31\", \"form\": \"10-K\", \"k\": 8}}",
     "model": "deepseek-flash",
     "tokens_in": 1420,
     "tokens_cached": 1280,
-    "tokens_out": 85,
-    "cost_usd": 0.00015168,
+    "tokens_out": 87,
+    "cost_usd": 0.00015408,
     "peak": true,
-    "latency_ms": 1481,
+    "latency_ms": 919,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:55:54+00:00"
+    "created_at": "2026-10-30T02:33:56+00:00"
   }
 }

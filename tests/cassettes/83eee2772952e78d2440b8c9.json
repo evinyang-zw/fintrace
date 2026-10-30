@@ -17,15 +17,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"先查 MSFT FY2024 研发费用（XBRL）\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"MSFT\", \"tag_query\": \"research and development expense\", \"as_of\": \"2024-12-31\", \"period_end\": \"2024-06-30\"}}",
+    "text": "{\"thought\": \"需要两家公司 FY2024 的研发费用，先查 XBRL 结构化数据。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"MSFT\", \"tag_query\": \"research and development expense\", \"as_of\": \"2024-12-31\", \"period_end\": \"2024-06-30\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1434,
     "tokens_cached": 1280,
-    "tokens_out": 76,
-    "cost_usd": 0.00014508,
+    "tokens_out": 82,
+    "cost_usd": 0.00015227999999999997,
     "peak": true,
-    "latency_ms": 1207,
+    "latency_ms": 897,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:55:45+00:00"
+    "created_at": "2026-10-30T02:33:47+00:00"
   }
 }

@@ -24,6 +24,9 @@ class TraceStep:
     tokens_in: int
     tokens_out: int
     cost_usd: float
+    tokens_cached: int = 0
+    llm_latency_ms: int = 0
+    peak: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -36,8 +39,11 @@ class TraceStep:
             "observation": self.observation,
             "tool_latency_ms": self.tool_latency_ms,
             "tokens_in": self.tokens_in,
+            "tokens_cached": self.tokens_cached,
             "tokens_out": self.tokens_out,
             "cost_usd": self.cost_usd,
+            "llm_latency_ms": self.llm_latency_ms,
+            "peak": self.peak,
         }
 
 

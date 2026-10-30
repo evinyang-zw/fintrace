@@ -40,8 +40,8 @@
     "tokens_out": 82,
     "cost_usd": 0.00018325199999999999,
     "peak": true,
-    "latency_ms": 1146,
+    "latency_ms": 1026,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:55:52+00:00"
+    "created_at": "2026-10-30T02:33:54+00:00"
   }
 }

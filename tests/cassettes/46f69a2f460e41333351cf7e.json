@@ -17,15 +17,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"需要 WMT FY2024 的营业收入与净销售额来计算营业利润率。先查 XBRL 结构化数据。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"WMT\", \"tag_query\": \"operating income\", \"as_of\": \"2024-06-30\", \"period_end\": \"2024-01-31\"}}\n{\"thought\": \"再查净销售额（revenue）。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"WMT\", \"tag_query\": \"net sales revenue\", \"as_of\": \"2024-06-30\", \"period_end\": \"2024-01-31\"}}",
+    "text": "{\"thought\": \"先查 WMT FY2024 的营业利润和收入，用 XBRL 结构化数据。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"WMT\", \"tag_query\": \"operating income\", \"as_of\": \"2024-06-30\", \"period_end\": \"2024-01-31\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1415,
     "tokens_cached": 1280,
-    "tokens_out": 155,
-    "cost_usd": 0.00023418,
+    "tokens_out": 83,
+    "cost_usd": 0.00014778,
     "peak": true,
-    "latency_ms": 1931,
+    "latency_ms": 872,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:55:23+00:00"
+    "created_at": "2026-10-30T02:33:35+00:00"
   }
 }

@@ -17,15 +17,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"先查 XBRL 是否有 Meridian Logistics LLC 子公司营收数据；同时需要确认公司主体。先试 xbrl_fact。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"MERIDIAN\", \"tag_query\": \"revenue\", \"as_of\": \"2025-06-30\"}}",
+    "text": "{\"thought\": \"需要查 Meridian Logistics LLC 在 FY2024 的营收。先试 XBRL 结构化数据，同时注意子公司/分部不能用合并数字。先查 XBRL。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"MERIDIAN\", \"tag_query\": \"revenue\", \"as_of\": \"2025-06-30\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1418,
     "tokens_cached": 1280,
-    "tokens_out": 79,
-    "cost_usd": 0.00014387999999999998,
+    "tokens_out": 88,
+    "cost_usd": 0.00015468,
     "peak": true,
-    "latency_ms": 996,
+    "latency_ms": 1201,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:55:39+00:00"
+    "created_at": "2026-10-30T02:33:43+00:00"
   }
 }

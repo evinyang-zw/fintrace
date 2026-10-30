@@ -25,15 +25,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"XBRL 无结果，改用正文检索，关键词用英文。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"total revenue net sales fiscal 2023\", \"tickers\": [\"AURORA\"], \"as_of\": \"2024-12-31\", \"k\": 8}}",
+    "text": "{\"thought\": \"XBRL 无结果，改用正文检索，关键词用英文。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"revenue fiscal 2023\", \"tickers\": [\"AURORA\"], \"as_of\": \"2024-12-31\", \"k\": 8}}",
     "model": "deepseek-flash",
     "tokens_in": 1549,
     "tokens_cached": 1408,
-    "tokens_out": 72,
-    "cost_usd": 0.000137148,
+    "tokens_out": 70,
+    "cost_usd": 0.000134748,
     "peak": true,
-    "latency_ms": 1324,
+    "latency_ms": 1118,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:54:11+00:00"
+    "created_at": "2026-10-30T02:33:35+00:00"
   }
 }

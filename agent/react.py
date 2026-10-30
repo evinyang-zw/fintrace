@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from agent.llm import LLMClient, LLMError, LLMResult, Message, build_llm
+from agent.llm import EmptyResponseError, LLMClient, LLMError, LLMResult, Message, build_llm
 from agent.prompts import (
     PROMPT_VERSION,
     build_finalize_prompt,
@@ -39,6 +39,7 @@ REPAIR_PROMPT = (
     "不要 Markdown，不要额外文字。"
 )
 REFUSAL_PREFIX = "无法确认"
+CONTEXT_TOKEN_LIMIT = 8000  # observations beyond this get replaced, not dropped
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +161,15 @@ class _Run:
 
                 try:
                     result = await self.ask(self.messages)
+                except EmptyResponseError as exc:
+                    # One retry: an empty body is usually a max_tokens accident,
+                    # not a contract violation.
+                    self.trace.notes.append(f"step {index}: empty response, retry once: {exc}")
+                    try:
+                        result = await self.ask(self.messages)
+                    except LLMError as retry_exc:
+                        self.trace.notes.append(f"step {index}: empty again: {retry_exc}")
+                        return self._refusal("empty_response")
                 except LLMError as exc:
                     self.trace.notes.append(f"step {index}: llm error: {exc}")
                     return self._refusal("llm_error")
@@ -179,11 +189,15 @@ class _Run:
                             observation=_truncate(result.text, 500),
                             tool_latency_ms=0,
                             tokens_in=result.tokens_in,
+                            tokens_cached=result.tokens_cached,
                             tokens_out=result.tokens_out,
                             cost_usd=result.cost_usd,
+                            llm_latency_ms=result.latency_ms,
+                            peak=result.peak,
                         )
                     )
                     self.messages.append(Message("user", REPAIR_PROMPT))
+                    self._trim_context()
                     continue
 
                 action, args, thought = parsed
@@ -222,8 +236,11 @@ class _Run:
                         observation=_truncate(observation),
                         tool_latency_ms=elapsed,
                         tokens_in=result.tokens_in,
+                        tokens_cached=result.tokens_cached,
                         tokens_out=result.tokens_out,
                         cost_usd=result.cost_usd,
+                        llm_latency_ms=result.latency_ms,
+                        peak=result.peak,
                     )
                 )
                 self.messages.append(
@@ -233,11 +250,39 @@ class _Run:
                         f"当前可用句柄: {self.store.known()}",
                     )
                 )
+                self._trim_context()
 
             self.trace.notes.append(f"step limit {self.config.max_steps} reached")
             return await self.finalize("step_limit")
         finally:
             self.write_trace()
+
+    def _trim_context(self) -> None:
+        """Drop the *content* of old observations, never the message structure.
+
+        The system prompt and the original question stay; the newest observation
+        stays; older ones become a one-line placeholder so handles cited earlier
+        remain conceptually valid.
+        """
+
+        def total() -> int:
+            return sum(len(message.content) // 4 for message in self.messages)
+
+        if total() <= CONTEXT_TOKEN_LIMIT:
+            return
+        for position, message in enumerate(self.messages):
+            if position < 2 or message.role != "user":
+                continue
+            if not message.content.startswith("TOOL RESULT"):
+                continue
+            if message.content.startswith("TOOL RESULT (trimmed"):
+                continue
+            self.messages[position] = Message(
+                "user",
+                "TOOL RESULT (trimmed): 较早的观察已裁剪以控制上下文；此前给出的句柄仍然有效。",
+            )
+            if total() <= CONTEXT_TOKEN_LIMIT:
+                return
 
     def write_trace(self) -> None:
         try:
@@ -267,9 +312,29 @@ class _Run:
                 result = await self.ask(
                     [*self.messages, Message("user", build_finalize_prompt(reason))]
                 )
+                self.trace.steps.append(
+                    TraceStep(
+                        index=len(self.trace.steps) + 1,
+                        thought="",
+                        action="finalize_prompt",
+                        args={"reason": reason},
+                        ok=True,
+                        code=None,
+                        observation=_truncate(result.text, 400),
+                        tool_latency_ms=0,
+                        tokens_in=result.tokens_in,
+                        tokens_cached=result.tokens_cached,
+                        tokens_out=result.tokens_out,
+                        cost_usd=result.cost_usd,
+                        llm_latency_ms=result.latency_ms,
+                        peak=result.peak,
+                    )
+                )
                 parsed = parse_action(result.text)
                 if parsed is not None and parsed[0] == "final_answer":
-                    return self.build_answer(parsed[1], thought=parsed[2], index=-1)
+                    return self.build_answer(
+                        parsed[1], thought=parsed[2], index=len(self.trace.steps) + 1
+                    )
                 self.trace.notes.append(f"finalize({reason}): reply was not final_answer")
             except LLMError as exc:
                 self.trace.notes.append(f"finalize({reason}): {exc}")

@@ -25,15 +25,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"检索结果没有直接给出 eCommerce 对可比销售额贡献的口径说明，需要换关键词再检索，例如 'eCommerce sales comparable sales definition' 或 'digital'。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"eCommerce sales impact comparable sales definition\", \"tickers\": [\"WMT\"], \"as_of\": \"2024-06-30\", \"k\": 8}}",
+    "text": "{\"thought\": \"检索结果没有直接给出 eCommerce 对可比销售额贡献的口径定义，需要换关键词再检索，例如 'eCommerce sales' 或 'comparable sales definition'。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"eCommerce sales impact comparable sales basis\", \"tickers\": [\"WMT\"], \"as_of\": \"2024-06-30\", \"k\": 8}}",
     "model": "deepseek-flash",
     "tokens_in": 2550,
     "tokens_cached": 2304,
     "tokens_out": 93,
     "cost_usd": 0.000199224,
     "peak": true,
-    "latency_ms": 1461,
+    "latency_ms": 1076,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:56:05+00:00"
+    "created_at": "2026-10-30T02:34:02+00:00"
   }
 }

@@ -17,15 +17,15 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"用户问的是苹果内部邮件披露的下一代 iPhone 具体发布时间。这属于内部信息，财报正文通常不会披露。先检索财报中是否有相关关键词。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"next generation iPhone launch date internal email\", \"tickers\": [\"AAPL\"], \"as_of\": \"2026-10-01\", \"k\": 8}}",
+    "text": "{\"thought\": \"用户问的是苹果内部邮件中下一代 iPhone 的具体发布时间。这属于内部信息，财报正文通常不会披露。先检索财报正文是否有相关关键词。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"next generation iPhone launch date internal email\", \"tickers\": [\"AAPL\"], \"as_of\": \"2026-10-01\", \"k\": 8}}",
     "model": "deepseek-flash",
     "tokens_in": 1411,
     "tokens_cached": 1277,
-    "tokens_out": 89,
-    "cost_usd": 0.000154662,
+    "tokens_out": 88,
+    "cost_usd": 0.000153462,
     "peak": true,
-    "latency_ms": 1370,
+    "latency_ms": 1462,
     "finish_reason": "stop",
-    "created_at": "2026-10-29T07:55:51+00:00"
+    "created_at": "2026-10-30T02:33:52+00:00"
   }
 }
