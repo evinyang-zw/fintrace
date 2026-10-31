@@ -222,7 +222,10 @@ class _Run:
                     continue
 
                 started = time.perf_counter()
-                outcome = self.tools.execute(action, args)
+                # Tools do blocking DB/HTTP work (embedding, rerank). Running them
+                # on the event loop serialises every concurrent question and
+                # inflates wall-clock p95; a thread keeps the loop free.
+                outcome = await asyncio.to_thread(self.tools.execute, action, args)
                 elapsed = int((time.perf_counter() - started) * 1000)
                 self.tool_calls += 1
                 observation = outcome.to_observation()

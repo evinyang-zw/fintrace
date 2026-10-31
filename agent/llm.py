@@ -325,7 +325,9 @@ class CassetteClient:
 def build_llm(settings: Settings, *, mode: str | None = None) -> LLMClient:
     """Live by default; ``FINTRACE_LLM_MODE=record|replay`` switches to cassettes."""
     resolved = mode or os.environ.get("FINTRACE_LLM_MODE", "live")
-    client = OpenAICompatClient(settings)
+    client = OpenAICompatClient(
+        settings, timeout_s=settings.llm_timeout_s, attempts=settings.llm_attempts
+    )
     if resolved == "live":
         return client
     if resolved not in {"record", "replay"}:

@@ -63,6 +63,10 @@ class Settings:
     llm_api_key: str = ""
     llm_temperature: float = 0.0
     llm_thinking: str = "disabled"
+    # Per-request timeout, not per-question: the p95 tail is a handful of
+    # 20-40s provider stalls, so bound each call and retry once.
+    llm_timeout_s: float = 25.0
+    llm_attempts: int = 2
     # W3 retrieval stack. Empty key means "degrade to BM25 and say so".
     embedding_base_url: str = DEFAULT_EMBEDDING_BASE_URL
     embedding_model: str = DEFAULT_EMBEDDING_MODEL
@@ -93,6 +97,8 @@ class Settings:
             llm_api_key=pick("LLM_API_KEY") or pick("DEEPSEEK_API_KEY"),
             llm_temperature=_as_float("LLM_TEMPERATURE", pick("LLM_TEMPERATURE", "0")),
             llm_thinking=pick("LLM_THINKING", "disabled"),
+            llm_timeout_s=_as_float("LLM_TIMEOUT_S", pick("LLM_TIMEOUT_S", "25")),
+            llm_attempts=_as_int("LLM_ATTEMPTS", pick("LLM_ATTEMPTS", "2")),
             embedding_base_url=pick("EMBEDDING_BASE_URL", DEFAULT_EMBEDDING_BASE_URL),
             embedding_model=pick("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
             embedding_dim=_as_int(
