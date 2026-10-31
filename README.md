@@ -14,13 +14,41 @@
 |---|---|
 | 数据摄取（EDGAR 10-K/10-Q + XBRL） | W1 完成 |
 | 评测协议 / NullAgent / 指标 / bootstrap | W1 完成 |
-| 金标题（6 类 × 5 题） | W1 完成（30/30，数值全部对账） |
-| 检索与引用（BM25 基线） | W2 完成；混合检索 W3 |
+| 金标题（45 题：F2 15、C2 10，其余 5） | W1 起 30 题；W3 扩到 45 |
+| 检索（BM25 / dense / RRF / rerank） | W3 实现三档，可显式降级 |
+| 引用（结构 → claim 级语义） | W3：数字引 `F#`，正文引 `K#` |
+| 语义判官（LLM + 缓存 + 自一致性） | W3 实现；60 条 κ 校准待做 |
 | Agent 编排（手写 ReAct） | W2 完成；LangGraph 版 W4 |
-| 确定性判分 / trace 回看 | W2 完成 |
+| trace 回看 / 离线回放 | W2 完成，W3 记录检索档位与降级原因 |
 | MCP 工具服务 | W4 |
 | CI（GitHub Actions，含 Postgres service） | W1 完成，W2 加 fixtures 冒烟 |
 | 生产化（镜像 / 部署 / 监控） | W5 |
+
+## W3 检索栈（2026-10-30）
+
+`chunk_vectors`（独立表，带模型名）+ 三档检索，缺 key 或缺向量时**显式降级**：
+
+| 档 | 组成 | 用途 |
+|---|---|---|
+| `bm25` | 词法检索 | 基线；无外部依赖 |
+| `hybrid` | BM25 + dense，RRF（k=60） | 跨语言召回 |
+| `hybrid_rerank` | hybrid 20 候选 → rerank → 8 | 排序质量 |
+
+```bash
+make embed-smoke   # 15 秒验证百炼 embedding（维度/相似度）
+make rerank-smoke  # 15 秒验证 rerank（相关段落必须排第一）
+make embed         # 回填 2 万 chunk，一次性
+RETRIEVAL_TIER=hybrid make eval AGENT=react JUDGE=llm
+make ablate        # 三档 × 2 seed 的消融（会写 reports/ablation/）
+```
+
+数字引用 `[F#]`、正文引用 `[K#]`：前者用 XBRL fact 做确定性比对，后者用 LLM 判
+"这段是否支撑这句话"。见 `docs/adr/ADR-004-fact-citations.md`。
+
+**W3.1 结果**（45 题）：修复"只读 400 字摘要"后，F2 从约 50% 升到 100%（hybrid），
+总正确率 77.5% → 95.0%（seed 0）/ 100%（seed 1），配对差异 +17.5pt `[+5.0, +32.5]`。
+瓶颈不是召回，是"看到证据却不去读全文"。详见 [docs/w3-report.md](docs/w3-report.md) §7
+与 `reports/w3.1/summary.md`。
 
 ## W2 基线（2026-10-29）
 
