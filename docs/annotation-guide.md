@@ -47,7 +47,7 @@ uv run python scripts/annotation_pack.py   # 生成 data/annotation/labels.csv�
 ## 算 κ
 
 ```bash
-uv run python scripts/kappa.py            # 读 data/annotation/labels.csv
+make kappa            # 读 data/annotation/labels.csv
 ```
 
 输出：样本量、完全一致率、二次加权 κ、人工/机器分布、前 10 条分歧。

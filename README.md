@@ -45,6 +45,8 @@ make ablate        # 三档 × 2 seed 的消融（会写 reports/ablation/）
 数字引用 `[F#]`、正文引用 `[K#]`：前者用 XBRL fact 做确定性比对，后者用 LLM 判
 "这段是否支撑这句话"。见 `docs/adr/ADR-004-fact-citations.md`。
 
+**判官已校准**：60 条盲标，二次加权 κ = **0.795**（rubric v3.1，完全一致 90%）。
+
 **W3.1 结果**（45 题）：修复"只读 400 字摘要"后，F2 从约 50% 升到 100%（hybrid），
 总正确率 77.5% → 95.0%（seed 0）/ 100%（seed 1），配对差异 +17.5pt `[+5.0, +32.5]`。
 瓶颈不是召回，是"看到证据却不去读全文"。详见 [docs/w3-report.md](docs/w3-report.md) §7
