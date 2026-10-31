@@ -36,7 +36,14 @@ def database_url(monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
         pytest.skip("no cassettes recorded")
 
     init_schema(url)
-    ingest_fixtures(url)
+    # Re-ingesting rewrites chunk ids and can shift tool observations just enough
+    # to miss a cassette. Seed once; replay against the same rows afterwards.
+    with psycopg.connect(url) as conn:
+        seeded = conn.execute(
+            "SELECT 1 FROM chunks WHERE accession = 'meridian-10k-fy2024' LIMIT 1"
+        ).fetchone()
+    if not seeded:
+        ingest_fixtures(url)
     monkeypatch.setenv("FINTRACE_LLM_MODE", "replay")
     monkeypatch.setenv("LLM_API_KEY", "replay-only")
     monkeypatch.setenv("DATABASE_URL", url)

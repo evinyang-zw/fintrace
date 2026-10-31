@@ -39,6 +39,18 @@ q-check: ## 校验评测集（schema + 数值对账）
 eval: ## 跑评测（AGENT=react JUDGE=deterministic ARGS="--limit 3"）
 	$(UV) run python -m eval.runner --agent $(AGENT) --judge $(JUDGE) $(ARGS)
 
+embed-smoke: ## 百炼 embedding 连通性验证（不写库）
+	$(UV) run python -m pipelines.embed --smoke
+
+rerank-smoke: ## 百炼 rerank 连通性验证（不写库）
+	PYTHONPATH=. $(UV) run python scripts/rerank_smoke.py
+
+embed: ## 向量回填（需 DASHSCOPE_API_KEY）
+	$(UV) run python -m pipelines.embed
+
+ablate: ## 三档消融：bm25 / hybrid / hybrid_rerank，各 2 个 seed
+	bash scripts/ablate.sh
+
 ask: ## 问一个临时问题：make ask Q="苹果 FY2024 营收？" UNIVERSE=AAPL
 	$(UV) run python -m agent.cli "$(Q)" --universe "$${UNIVERSE:-AAPL}" $(ARGS)
 
@@ -67,4 +79,4 @@ check: lint type test ## 提交前全量检查
 pricing: ## 校验单价表（峰谷/缓存规则 + served model 对齐）
 	$(UV) run python -m agent.pricing
 
-.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask trace test lint fmt type check pricing
+.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask trace test lint fmt type check pricing embed embed-smoke rerank-smoke ablate

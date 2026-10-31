@@ -18,12 +18,86 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, cast
 
+from agent.retrieval import Retriever
 from eval.schema import Citation
 from pipelines.db import connect
 
-_CJK = re.compile(r"[\u3400-\u9fff\uf900-\ufaff]")
 _MAX_SECTION_CHARS = 6000
 _MAX_SNIPPET_CHARS = 400
+_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9'-]+")
+_SNIPPET_STOP = {
+    "the",
+    "and",
+    "for",
+    "with",
+    "that",
+    "this",
+    "from",
+    "were",
+    "was",
+    "are",
+    "its",
+    "our",
+    "has",
+    "have",
+    "had",
+    "due",
+    "primarily",
+    "increase",
+    "increased",
+    "decrease",
+    "decreased",
+    "during",
+    "compared",
+    "which",
+    "what",
+    "how",
+    "why",
+    "fiscal",
+    "year",
+    "million",
+    "billion",
+}
+
+
+def focus_snippet(text: str, query: str, limit: int = _MAX_SNIPPET_CHARS) -> str:
+    """Return a window of ``text`` around the query terms, not the first N chars.
+
+    Taking the head of a 3,200-character chunk is how the agent "reads" past the
+    sentence it needs and then refuses. This picks the densest query-term window
+    instead; ``get_section`` remains the way to read the whole section.
+    """
+    terms = {
+        word.lower()
+        for word in _WORD_RE.findall(query)
+        if len(word) > 2 and word.lower() not in _SNIPPET_STOP
+    }
+    if not terms or len(text) <= limit:
+        return text[:limit]
+    low = text.lower()
+    best_pos, best_hits = -1, 0
+    # Sorted terms + "earliest position wins ties" makes the window independent
+    # of set iteration order (PYTHONHASHSEED). Without this, the same query
+    # produces a different snippet in a new process and replay/caching break.
+    for term in sorted(terms):
+        start = 0
+        while (position := low.find(term, start)) != -1:
+            window = low[max(0, position - limit // 2) : position + limit // 2]
+            hits = sum(1 for candidate in terms if candidate in window)
+            if hits > best_hits or (hits == best_hits and (best_pos < 0 or position < best_pos)):
+                best_pos, best_hits = position, hits
+            start = position + 1
+            if hits == len(terms):
+                break
+    if best_pos < 0:
+        return text[:limit]
+    start = max(0, best_pos - limit // 3)
+    end = min(len(text), start + limit)
+    prefix = "…" if start > 0 else ""
+    suffix = "…" if end < len(text) else ""
+    return prefix + text[start:end].strip() + suffix
+
+
 _MAX_QUOTE_CHARS = 200
 
 
@@ -64,6 +138,17 @@ class ToolFailure(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
+class FactEvidence:
+    name: str
+    ticker: str
+    tag: str
+    value: float
+    unit: str
+    period_end: date
+    fiscal_period: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Handle:
     name: str
     accession: str
@@ -80,7 +165,36 @@ class EvidenceStore:
     """Per-run map from handle to a concrete text span."""
 
     handles: dict[str, Handle] = field(default_factory=dict)
+    # One entry per search call: which tier actually ran, and which section
+    # identifiers came back. Recall@8 is computed from this without re-running
+    # retrieval, so the metric and the answer always describe the same run.
+    search_calls: list[dict[str, Any]] = field(default_factory=list)
+    facts: dict[str, FactEvidence] = field(default_factory=dict)
     _counter: int = 0
+    _fact_counter: int = 0
+
+    def add_fact(
+        self,
+        *,
+        ticker: str,
+        tag: str,
+        value: float,
+        unit: str,
+        period_end: date,
+        fiscal_period: str | None,
+    ) -> FactEvidence:
+        self._fact_counter += 1
+        fact = FactEvidence(
+            name=f"F{self._fact_counter}",
+            ticker=ticker,
+            tag=tag,
+            value=value,
+            unit=unit,
+            period_end=period_end,
+            fiscal_period=fiscal_period,
+        )
+        self.facts[fact.name] = fact
+        return fact
 
     def add(
         self,
@@ -139,8 +253,8 @@ TOOL_SPECS: list[dict[str, Any]] = [
     {
         "name": "search_filings",
         "description": (
-            "在指定公司的财报正文里做关键词检索，返回带句柄 [Kn] 的片段。"
-            "query 必须是英文关键词（用户问题是中文，需要你自己翻译）。"
+            "在指定公司的财报正文里检索，返回带句柄 [Kn] 的片段。"
+            "query 用自然语言即可（中文或英文都行；英文通常更准）。"
             "只有这里和 get_section 返回的片段才能被引用。"
         ),
         "parameters": {
@@ -148,7 +262,7 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "英文关键词，例如 'Apple revenue fiscal 2024'",
+                    "description": "自然语言或关键词，例如 'Apple total net revenue fiscal 2024'",
                 },
                 "tickers": {"type": "array", "items": {"type": "string"}},
                 "as_of": {"type": "string", "description": "YYYY-MM-DD，只用该日期前披露的文档"},
@@ -178,7 +292,8 @@ TOOL_SPECS: list[dict[str, Any]] = [
         "description": (
             "查询 XBRL 结构化财务数字——所有数字的唯一权威来源。"
             "tag_query 用自然语言（如 'revenue' / 'net income' / 'capital expenditure'），"
-            "会返回最多 5 个候选（含期间与单位），自己选对的那个。"
+            "会返回最多 5 个候选（含期间、单位与 F# 句柄），自己选对的那个。"
+            "答案里的数字必须引用对应的 [F#]。"
         ),
         "parameters": {
             "type": "object",
@@ -304,9 +419,16 @@ def safe_compute(expression: str) -> float:
 
 
 class ToolExecutor:
-    def __init__(self, database_url: str, store: EvidenceStore) -> None:
+    def __init__(
+        self,
+        database_url: str,
+        store: EvidenceStore,
+        *,
+        retrieval: Retriever | None = None,
+    ) -> None:
         self._database_url = database_url
         self._store = store
+        self._retrieval = retrieval or Retriever(database_url)
 
     def execute(self, name: str, args: dict[str, Any]) -> ToolOutcome:
         handler = {
@@ -343,80 +465,76 @@ class ToolExecutor:
         query = _req_str(args, "query")
         tickers = _req_list(args, "tickers")
         as_of = _req_date(args, "as_of")
-        k = _opt_int(args, "k", 8, 1, 12)
+        k = _opt_int(args, "k", 8, 1, 20)
         form = _opt_str(args, "form")
-
-        if _CJK.search(query):
-            raise ToolArgError(
-                "query must be English keywords; the corpus is English. "
-                "Translate it yourself, e.g. 'Apple total net revenue fiscal 2024'."
-            )
         mapping = self._resolve(tickers)
 
-        sql = """
-            SELECT ch.accession, ch.item_code, ch.char_start, ch.char_end, ch.text,
-                   f.form, f.filed_at, f.period_end, c.ticker,
-                   ts_rank_cd(
-                       to_tsvector('english', ch.text),
-                       websearch_to_tsquery('english', %(q)s)
-                   ) AS score
-            FROM chunks ch
-            JOIN filings f ON f.accession = ch.accession
-            JOIN companies c ON c.cik = f.cik
-            WHERE ch.filed_at <= %(as_of)s
-              AND f.cik = ANY(%(ciks)s)
-              AND (%(form)s::text IS NULL OR f.form = %(form)s)
-              AND to_tsvector('english', ch.text) @@ websearch_to_tsquery('english', %(q)s)
-            ORDER BY score DESC, ch.filed_at DESC
-            LIMIT %(limit)s
-        """
-        params = {
-            "q": query,
-            "as_of": as_of,
-            "ciks": list(mapping.values()),
-            "form": form,
-            "limit": k,
-        }
-        with connect(self._database_url) as conn:
-            rows = conn.execute(sql, params).fetchall()
-
-        if not rows:
-            return {
+        hits, meta = self._retrieval.search(query, list(mapping.values()), as_of, k=k, form=form)
+        if not hits:
+            payload: dict[str, Any] = {
                 "results": [],
-                "hint": "no lexical match. Try broader English keywords (e.g. drop year, use 'revenue' instead of a phrase).",
+                "retrieval": meta.as_dict(),
+                "hint": (
+                    "no match. Try broader keywords, drop the year, "
+                    "or use get_section on a known item."
+                ),
             }
+            if meta.degraded:
+                payload["warning"] = "retrieval degraded: " + ", ".join(meta.degraded)
+            return payload
 
         results: list[dict[str, Any]] = []
-        seen: set[tuple[str, str, int]] = set()
-        for row in rows:
-            key = (str(row["accession"]), str(row["item_code"]), int(cast(int, row["char_start"])))
-            if key in seen:
-                continue
-            seen.add(key)
-            text = str(row["text"])
+        for hit in hits:
             handle = self._store.add(
-                accession=str(row["accession"]),
-                item_code=str(row["item_code"]),
-                char_start=int(cast(int, row["char_start"])),
-                char_end=int(cast(int, row["char_end"])),
-                quote=text,
-                label=f"{row['ticker']}/{row['form']}/{row['period_end']}",
-                filed_at=cast(date, row["filed_at"]),
+                accession=hit.accession,
+                item_code=hit.item_code,
+                char_start=hit.char_start,
+                char_end=hit.char_end,
+                quote=hit.text,
+                label=f"{hit.ticker}/{hit.form}/{hit.period_end}",
+                filed_at=hit.filed_at,
             )
             results.append(
                 {
                     "handle": handle.name,
-                    "doc_id": str(row["accession"]),
-                    "ticker": str(row["ticker"]),
-                    "form": str(row["form"]),
-                    "item": str(row["item_code"]),
-                    "period_end": str(row["period_end"]),
-                    "filed_at": str(row["filed_at"]),
-                    "score": round(float(cast(Any, row["score"])), 4),
-                    "snippet": text[:_MAX_SNIPPET_CHARS],
+                    "doc_id": hit.accession,
+                    "ticker": hit.ticker,
+                    "form": hit.form,
+                    "item": hit.item_code,
+                    "period_end": str(hit.period_end),
+                    "filed_at": str(hit.filed_at),
+                    "score": round(hit.score, 4),
+                    "snippet": focus_snippet(hit.text, query),
+                    "section_chars": len(hit.text),
+                    "snippet_truncated": len(hit.text) > _MAX_SNIPPET_CHARS,
                 }
             )
-        return {"results": results}
+
+        self._store.search_calls.append(
+            {
+                "query": query,
+                "tier": meta.tier,
+                "degraded": list(meta.degraded),
+                "hits": [hit.citation_key for hit in hits],
+            }
+        )
+        payload = {
+            "results": results,
+            "retrieval": meta.as_dict(),
+            "note": (
+                "snippet 只是片段。若其中没有你要的具体数字、原因或表述，"
+                "调用 get_section(doc_id, item) 读该节全文，再决定是否拒答。"
+            ),
+        }
+        if meta.degraded:
+            payload["warning"] = (
+                "retrieval degraded to "
+                + meta.tier
+                + ": "
+                + ", ".join(meta.degraded)
+                + ". Say so if it limits the answer."
+            )
+        return payload
 
     def _get_section(self, args: dict[str, Any]) -> dict[str, Any]:
         doc_id = _req_str(args, "doc_id")
@@ -586,59 +704,39 @@ class ToolExecutor:
                 break
         ordered = ordered[:5]
 
-        matches = [
-            {
-                "tag": str(row["tag"]),
-                "value": float(cast(Any, row["value"])),
-                "unit": str(row["unit"]),
-                "period_end": str(row["period_end"]),
-                "fiscal_year": row["fiscal_year"],
-                "fiscal_period": row["fiscal_period"],
-                "form": row["form"],
-                "filed_at": str(row["filed_at"]),
-            }
-            for row in ordered
-        ]
-        top = ordered[0]
-        citation_handle = self._fact_citation(
-            accession=str(top["accn"]), form=str(top["form"] or "")
-        )
-        payload: dict[str, Any] = {"matches": matches}
-        if citation_handle:
-            payload["citation_handle"] = citation_handle
-            payload["hint"] = f"引用这个数字时用 [{citation_handle}]"
+        matches: list[dict[str, Any]] = []
+        for row in ordered:
+            fact = self._store.add_fact(
+                ticker=ticker,
+                tag=str(row["tag"]),
+                value=float(cast(Any, row["value"])),
+                unit=str(row["unit"]),
+                period_end=cast(date, row["period_end"]),
+                fiscal_period=cast(str | None, row["fiscal_period"]),
+            )
+            matches.append(
+                {
+                    "handle": fact.name,
+                    "tag": fact.tag,
+                    "value": fact.value,
+                    "unit": fact.unit,
+                    "period_end": str(fact.period_end),
+                    "fiscal_year": row["fiscal_year"],
+                    "fiscal_period": row["fiscal_period"],
+                    "form": row["form"],
+                    "filed_at": str(row["filed_at"]),
+                }
+            )
+        payload: dict[str, Any] = {
+            "matches": matches,
+            "hint": "引用数字时用 [F#]；不要用正文段落代替数字的出处。",
+        }
         if period_miss:
             payload["period_end_miss"] = True
             payload["period_end_note"] = (
                 "指定的 period_end 没有命中，已忽略它返回可用期间；请核对财年结束日。"
             )
         return payload
-
-    def _fact_citation(self, *, accession: str, form: str) -> str | None:
-        item = "8" if form.startswith("10-K") else "1"
-        sql = """
-            SELECT s.item_code, s.char_start, s.text, f.filed_at, f.period_end, c.ticker
-            FROM sections s
-            JOIN filings f ON f.accession = s.accession
-            JOIN companies c ON c.cik = f.cik
-            WHERE s.accession = %(doc)s AND s.item_code = %(item)s
-        """
-        with connect(self._database_url) as conn:
-            row = conn.execute(sql, {"doc": accession, "item": item}).fetchone()
-        if row is None:
-            return None
-        text = str(row["text"])[:4000]
-        offset = int(cast(int, row["char_start"]))
-        handle = self._store.add(
-            accession=accession,
-            item_code=str(row["item_code"]),
-            char_start=offset,
-            char_end=offset + len(text),
-            quote=text,
-            label=f"{row['ticker']}/{form}/{row['period_end']}",
-            filed_at=cast(date, row["filed_at"]),
-        )
-        return handle.name
 
     def _compute(self, args: dict[str, Any]) -> dict[str, Any]:
         expression = _req_str(args, "expression")
@@ -653,6 +751,7 @@ def citation_from(handle: Handle) -> Citation:
         char_start=handle.char_start,
         char_end=handle.char_end,
         quote=handle.quote,
+        handle=handle.name,
     )
 
 

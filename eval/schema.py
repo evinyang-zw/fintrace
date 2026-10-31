@@ -8,7 +8,7 @@ it, so ``eval/`` never changes when the agent does.
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -37,6 +37,21 @@ class Citation(BaseModel):
     char_start: int
     char_end: int
     quote: str = ""
+    # The handle the model actually wrote (e.g. "K3"). Empty for citations
+    # reconstructed from older artifacts; the claim-level checker needs it.
+    handle: str = ""
+
+
+class FactCitation(BaseModel):
+    """A number's provenance: the XBRL fact itself, not a nearby paragraph."""
+
+    handle: str
+    ticker: str
+    tag: str
+    value: float
+    unit: str
+    period_end: date
+    fiscal_period: str | None = None
 
 
 class Usage(BaseModel):
@@ -53,11 +68,17 @@ class Usage(BaseModel):
 class Answer(BaseModel):
     text: str
     citations: list[Citation] = Field(default_factory=list)
+    # Numbers cite facts (F<n>), prose cites spans (K<n>). Keeping them apart is
+    # what makes "every number recomputable" checkable instead of decorative.
+    facts: list[FactCitation] = Field(default_factory=list)
     # Every span the agent actually saw. A citation is only honest if it is also
     # in here; the judge checks that, so a fabricated reference cannot pass.
     evidence: list[Citation] = Field(default_factory=list)
     refused: bool = False
     refusal_reason: str | None = None
+    # Per-search-call record: which tier ran, what degraded, which section keys
+    # came back. Recall@8 is derived from this instead of replaying retrieval.
+    retrieval: list[dict[str, Any]] = Field(default_factory=list)
     usage: Usage = Field(default_factory=Usage)
     trace_id: str = ""
 

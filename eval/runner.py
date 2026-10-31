@@ -15,13 +15,13 @@ from agent.pricing import load_pricing
 from agent.react import ReactAgent
 from eval.agents.null import NullAgent
 from eval.graders import DeterministicJudge
-from eval.judge import RuleJudge
+from eval.judge import RuleJudge, W3Judge
 from eval.metrics import ItemResult, Metrics, aggregate
 from eval.report import write_reports
 from eval.schema import Agent, Judge, Question
 from pipelines.config import Settings
 
-DEFAULT_DATASET = Path("eval/datasets/gold_v0.jsonl")
+DEFAULT_DATASET = Path("eval/datasets/gold_v1.jsonl")
 DEFAULT_OUT = Path("reports")
 
 AGENTS: dict[str, Callable[[], Agent]] = {
@@ -31,6 +31,7 @@ AGENTS: dict[str, Callable[[], Agent]] = {
 JUDGES: dict[str, Callable[[], Judge]] = {
     "rule": RuleJudge,
     "deterministic": lambda: DeterministicJudge(Settings.from_env()),
+    "llm": lambda: W3Judge(Settings.from_env()),
 }
 
 app = typer.Typer(add_completion=False)
@@ -118,6 +119,7 @@ def main(
     out: Path = typer.Option(DEFAULT_OUT, help="报告输出目录"),
     seed: int = typer.Option(0, help="bootstrap 随机种子"),
     baseline: Path | None = typer.Option(None, help="上一次报告的 JSON，用于 Δ 列"),
+    judge_kappa: float | None = typer.Option(None, help="人工校准得到的加权 κ，写进报告头"),
 ) -> None:
     console = Console()
     if not dataset.exists():
@@ -158,7 +160,10 @@ def main(
             "model": max(set(served), key=served.count) if served else settings.llm_model,
             "pricing_version": load_pricing().version,
             "thinking": settings.llm_thinking,
+            "retrieval_tier": settings.retrieval_tier,
         }
+    if judge_kappa is not None:
+        meta["judge_kappa"] = f"{judge_kappa:.3f}"
     baseline_metrics: dict[str, float] | None = None
     if baseline is not None:
         raw = json.loads(baseline.read_text(encoding="utf-8"))

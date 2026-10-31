@@ -16,6 +16,7 @@ AGENT_LABEL = "目标：答案正确率 ↑、引用支撑率 ↑、误拒率 �
 _BASELINE_KEYS = {
     "correctness": "答案正确率",
     "citation_support": "引用支撑率",
+    "recall_at_8": "召回@8",
     "numeric_accuracy": "数值准确率",
     "refusal_recall": "拒答召回",
     "false_refusal_rate": "误拒率",
@@ -77,7 +78,10 @@ def render_markdown(
         f"| 平均得分 | {metrics.mean_score:.2f} | — | — | 0–1，rubric 归一化 |",
         f"| 引用支撑率 | {_pct(metrics.citation_support)} | "
         f"{_delta(metrics.citation_support, baseline, 'citation_support')} | "
-        f"{_ci(citations, seed)} | 分母为可答题数，无引用记 0 |",
+        f"{_ci(citations, seed)} | claim 级语义支撑，非结构匹配 |",
+        f"| 召回@8（F2） | {_pct(metrics.recall_at_8)} | "
+        f"{_delta(metrics.recall_at_8, baseline, 'recall_at_8')} | — | "
+        f"n={metrics.recall_n}，section 级 |",
         f"| 数值准确率 | {_pct(metrics.numeric_accuracy)} | "
         f"{_delta(metrics.numeric_accuracy, baseline, 'numeric_accuracy')} | — | C1+C2，容差 0.5% |",
         f"| 拒答召回 | {_pct(metrics.refusal_recall)} | "
@@ -181,6 +185,8 @@ def write_reports(
             "mean_score": metrics.mean_score,
             "citation_support": metrics.citation_support,
             "numeric_accuracy": metrics.numeric_accuracy,
+            "recall_at_8": metrics.recall_at_8,
+            "recall_n": metrics.recall_n,
             "refusal_recall": metrics.refusal_recall,
             "false_refusal_rate": metrics.false_refusal_rate,
             "hallucination_rate": metrics.hallucination_rate,

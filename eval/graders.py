@@ -165,6 +165,10 @@ class DeterministicJudge:
 
     def _citation_score(self, answer: Answer) -> tuple[float, str]:
         if not answer.citations:
+            # A number cited to an XBRL fact (F<n>) has provenance even without
+            # a text span; the semantic checker verifies the value separately.
+            if answer.facts:
+                return 1.0, f"fact-backed ({len(answer.facts)} facts)"
             return 0.0, "citations 0/0 (none)"
         evidence_keys = {
             (c.accession, c.item_code, c.char_start, c.char_end) for c in answer.evidence

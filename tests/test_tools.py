@@ -13,7 +13,7 @@ from datetime import date
 import psycopg
 import pytest
 
-from agent.tools import EvidenceStore, ToolArgError, ToolExecutor, safe_compute
+from agent.tools import EvidenceStore, ToolArgError, ToolExecutor, focus_snippet, safe_compute
 from pipelines.config import Settings
 from pipelines.db import connect, init_schema
 from pipelines.fixtures import ingest as ingest_fixtures
@@ -110,15 +110,26 @@ def test_compute_whitelist() -> None:
             safe_compute(bad)
 
 
-def test_search_rejects_chinese_query_without_touching_db() -> None:
-    tool = ToolExecutor("postgresql://unused", EvidenceStore())
+def test_search_passes_natural_language_query_to_retriever() -> None:
+    seen: dict[str, str] = {}
+
+    class _StubRetriever:
+        def search(self, query: str, ciks: list[str], as_of: object, **kwargs: object):
+            seen["query"] = query
+            from agent.retrieval import RetrievalMeta
+
+            return [], RetrievalMeta(requested_tier="bm25", tier="bm25")
+
+    tool = ToolExecutor("postgresql://unused", EvidenceStore(), retrieval=_StubRetriever())  # type: ignore[arg-type]
+    tool._resolve = lambda tickers: {ticker: "0000000001" for ticker in tickers}  # type: ignore[method-assign]
     outcome = tool.execute(
         "search_filings",
         {"query": "苹果 营收", "tickers": ["TSTCO"], "as_of": "2024-12-31"},
     )
-    assert outcome.ok is False
-    assert outcome.code == "bad_args"
-    assert "English" in (outcome.message or "")
+    # The tool no longer rejects Chinese; translation is a retrieval concern.
+    assert seen["query"] == "苹果 营收"
+    assert outcome.ok and outcome.data is not None
+    assert outcome.data["results"] == []
 
 
 def test_compute_tool_returns_value() -> None:
@@ -158,14 +169,16 @@ def test_get_section_slices_inside_full_document(database_url: str) -> None:
 
 
 def test_xbrl_revenue_exact(database_url: str) -> None:
-    tool, _store = executor(database_url)
+    tool, store = executor(database_url)
     outcome = tool.execute(
         "xbrl_fact", {"ticker": TICKER, "tag_query": "revenue", "as_of": "2024-12-31"}
     )
     assert outcome.ok and outcome.data is not None
     values = [item["value"] for item in outcome.data["matches"]]
     assert 391_035_000_000.0 in values
-    assert outcome.data["citation_handle"].startswith("K")
+    handles = [item["handle"] for item in outcome.data["matches"]]
+    assert all(handle.startswith("F") for handle in handles)
+    assert set(handles) <= set(store.facts)
 
 
 def test_xbrl_alias_finds_capex(database_url: str) -> None:
@@ -230,3 +243,21 @@ def test_date_validation() -> None:
         "search_filings", {"query": "revenue", "tickers": ["TSTCO"], "as_of": "2024-13-40"}
     )
     assert outcome.code == "bad_args"
+
+
+def test_focus_snippet_centers_on_query_terms() -> None:
+    text = "filler " * 200 + "total net sales were 391,035 million in fiscal 2024 " + "tail " * 400
+    snippet = focus_snippet(text, "total net sales 391035", limit=400)
+    assert "391,035" in snippet
+    assert snippet.startswith("…")  # a middle window, not the head
+    assert len(snippet) <= 402
+
+
+def test_focus_snippet_falls_back_to_head_without_terms() -> None:
+    text = "x" * 1000
+    assert focus_snippet(text, "中文查询", limit=100) == "x" * 100
+
+
+def test_focus_snippet_is_order_independent() -> None:
+    text = "alpha " * 50 + "total revenue was 100 " + "beta " * 100
+    assert focus_snippet(text, "revenue total") == focus_snippet(text, "total revenue")

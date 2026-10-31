@@ -28,9 +28,10 @@ from agent.prompts import (
     build_system_prompt,
     build_task_prompt,
 )
+from agent.retrieval import Retriever
 from agent.tools import TOOL_SPECS, EvidenceStore, ToolExecutor, citation_from, evidence_citations
 from agent.trace import Trace, TraceStep
-from eval.schema import Answer, Citation, Question, Usage
+from eval.schema import Answer, Citation, FactCitation, Question, Usage
 from pipelines.config import Settings
 
 REPAIR_PROMPT = (
@@ -297,6 +298,7 @@ class _Run:
             text=text or f"{REFUSAL_PREFIX}：本次运行未能取得足够证据（{reason}）。",
             citations=[],
             evidence=evidence_citations(self.store),
+            retrieval=list(self.store.search_calls),
             refused=True,
             refusal_reason=reason,
             usage=self.usage(),
@@ -348,6 +350,23 @@ class _Run:
         if isinstance(raw_citations, list):
             names.extend(str(item) for item in raw_citations)
         names.extend(re.findall(r"\[(K\d+)\]", text))
+        fact_names = list(re.findall(r"\[(F\d+)\]", text))
+        fact_names.extend(name for name in names if name.startswith("F"))
+        names = [name for name in names if name.startswith("K")]
+
+        facts = [
+            FactCitation(
+                handle=fact.name,
+                ticker=fact.ticker,
+                tag=fact.tag,
+                value=fact.value,
+                unit=fact.unit,
+                period_end=fact.period_end,
+                fiscal_period=fact.fiscal_period,
+            )
+            for name in dict.fromkeys(fact_names)
+            if (fact := self.store.facts.get(name)) is not None
+        ]
 
         citations: list[Citation] = []
         seen: set[tuple[str, str, int, int]] = set()
@@ -366,13 +385,15 @@ class _Run:
         answer = Answer(
             text=text or f"{REFUSAL_PREFIX}：没有可用的最终答案。",
             citations=citations,
+            facts=facts,
             evidence=evidence_citations(self.store),
+            retrieval=list(self.store.search_calls),
             refused=refused,
             refusal_reason="insufficient_evidence" if refused else None,
             usage=self.usage(),
             trace_id=self.trace_id,
         )
-        if not citations and not refused:
+        if not citations and not facts and not refused:
             self.trace.notes.append("answered without any citation")
         self.trace.answer = answer
         self.trace.steps.append(
@@ -409,8 +430,9 @@ class ReactAgent:
         self.settings = settings
         self.config = config or ReactConfig()
         self._llm = llm or build_llm(settings)
+        self._retrieval = Retriever.from_settings(settings)
         self._tools_factory = tools_factory or (
-            lambda store: ToolExecutor(settings.database_url, store)
+            lambda store: ToolExecutor(settings.database_url, store, retrieval=self._retrieval)
         )
 
     async def answer(self, question: Question) -> Answer:

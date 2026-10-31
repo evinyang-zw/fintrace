@@ -50,6 +50,11 @@ class Metrics:
     cost_per_question: float
     latency_p50_ms: float
     latency_p95_ms: float
+    # Section-level recall@8 on multi-hop questions (the only category whose
+    # answers depend on retrieval). Derived from each run's search log, so the
+    # metric and the answer always describe the same retrieval calls.
+    recall_at_8: float = 0.0
+    recall_n: int = 0
     by_category: dict[str, CategoryMetrics] = field(default_factory=dict)
 
 
@@ -63,8 +68,9 @@ def aggregate(results: list[ItemResult]) -> Metrics:
     correct = sum(1 for s in scores if s >= 1)
     mean_score = (sum(scores) / len(scores) / 2) if scores else 0.0
 
-    citation_numerator = sum(1 for r in answerable if r.grade.citation_support >= 1.0)
+    citation_values = [r.grade.citation_support for r in answerable]
     numeric_ok = sum(1 for r in numeric if r.grade.numeric_ok is True)
+    recall_at_8, recall_n = _recall_at_8(results)
 
     latencies = [r.answer.usage.latency_ms for r in results]
     costs = [r.answer.usage.cost_usd for r in results]
@@ -76,7 +82,7 @@ def aggregate(results: list[ItemResult]) -> Metrics:
         unanswerable=len(unanswerable),
         correctness=_ratio(correct, len(scores)),
         mean_score=mean_score,
-        citation_support=_ratio(citation_numerator, len(answerable)),
+        citation_support=(sum(citation_values) / len(citation_values)) if citation_values else 0.0,
         numeric_accuracy=_ratio(numeric_ok, len(numeric)),
         refusal_recall=_ratio(sum(1 for r in unanswerable if r.answer.refused), len(unanswerable)),
         false_refusal_rate=_ratio(sum(1 for r in answerable if r.answer.refused), len(answerable)),
@@ -86,6 +92,8 @@ def aggregate(results: list[ItemResult]) -> Metrics:
         cost_per_question=(sum(costs) / n) if n else 0.0,
         latency_p50_ms=percentile(latencies, 0.50),
         latency_p95_ms=percentile(latencies, 0.95),
+        recall_at_8=recall_at_8,
+        recall_n=recall_n,
         by_category=_by_category(results),
     )
 
@@ -124,3 +132,23 @@ def percentile(values: Sequence[float], p: float) -> float:
 
 def _ratio(numerator: int | float, denominator: int) -> float:
     return float(numerator) / denominator if denominator else 0.0
+
+
+def _recall_at_8(results: list[ItemResult]) -> tuple[float, int]:
+    """Did any top-8 search call surface a section named in required_citations?"""
+    eligible = [
+        r for r in results if r.question.category == "multi_hop" and r.question.required_citations
+    ]
+    if not eligible:
+        return 0.0, 0
+    hits = 0
+    for result in eligible:
+        required = set(result.question.required_citations)
+        seen: set[str] = set()
+        for call in result.answer.retrieval:
+            raw = call.get("hits", [])
+            if isinstance(raw, list):
+                seen.update(str(item) for item in raw)
+        if required & seen:
+            hits += 1
+    return hits / len(eligible), len(eligible)

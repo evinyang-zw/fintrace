@@ -77,3 +77,17 @@ CREATE TABLE IF NOT EXISTS facts (
 
 CREATE INDEX IF NOT EXISTS facts_lookup_idx ON facts (cik, tag, period_end DESC);
 CREATE INDEX IF NOT EXISTS facts_filed_idx ON facts (cik, filed_at DESC);
+
+-- W3: embeddings in their own table. Keeping the model name in the key means a
+-- provider switch never silently mixes two vector spaces in one query.
+-- No HNSW at 20k chunks: a filtered exact scan is milliseconds and cannot lose
+-- recall to an approximate index.
+CREATE TABLE IF NOT EXISTS chunk_vectors (
+    chunk_id BIGINT NOT NULL REFERENCES chunks (id) ON DELETE CASCADE,
+    model    TEXT NOT NULL,
+    dim      INTEGER NOT NULL,
+    vec      vector NOT NULL,
+    PRIMARY KEY (chunk_id, model)
+);
+
+CREATE INDEX IF NOT EXISTS chunk_vectors_model_idx ON chunk_vectors (model);
