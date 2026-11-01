@@ -195,6 +195,8 @@ class _Run:
                             cost_usd=result.cost_usd,
                             llm_latency_ms=result.latency_ms,
                             peak=result.peak,
+                            hedged=result.hedged,
+                            hedge_won=result.hedge_won,
                         )
                     )
                     self.messages.append(Message("user", REPAIR_PROMPT))
@@ -245,6 +247,8 @@ class _Run:
                         cost_usd=result.cost_usd,
                         llm_latency_ms=result.latency_ms,
                         peak=result.peak,
+                        hedged=result.hedged,
+                        hedge_won=result.hedge_won,
                     )
                 )
                 self.messages.append(
@@ -333,6 +337,8 @@ class _Run:
                         cost_usd=result.cost_usd,
                         llm_latency_ms=result.latency_ms,
                         peak=result.peak,
+                        hedged=result.hedged,
+                        hedge_won=result.hedge_won,
                     )
                 )
                 parsed = parse_action(result.text)

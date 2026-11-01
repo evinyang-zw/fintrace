@@ -18,7 +18,7 @@ import os
 import random
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol, cast
@@ -35,6 +35,10 @@ DEFAULT_TIMEOUT_S = 120.0
 
 class LLMError(RuntimeError):
     """A call that cannot be retried into success."""
+
+
+class RetryableLLMError(LLMError):
+    """Network/429/5xx: worth another attempt (or the hedge's second copy)."""
 
 
 class EmptyResponseError(LLMError):
@@ -66,6 +70,8 @@ class LLMResult:
     latency_ms: int
     finish_reason: str
     created_at: str  # ISO-8601, UTC
+    hedged: bool = False  # a duplicate request was started
+    hedge_won: bool = False  # the duplicate answered first
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -79,6 +85,8 @@ class LLMResult:
             "latency_ms": self.latency_ms,
             "finish_reason": self.finish_reason,
             "created_at": self.created_at,
+            "hedged": self.hedged,
+            "hedge_won": self.hedge_won,
         }
 
     @classmethod
@@ -94,6 +102,8 @@ class LLMResult:
             latency_ms=int(raw["latency_ms"]),
             finish_reason=str(raw["finish_reason"]),
             created_at=str(raw["created_at"]),
+            hedged=bool(raw.get("hedged", False)),
+            hedge_won=bool(raw.get("hedge_won", False)),
         )
 
 
@@ -129,6 +139,7 @@ class OpenAICompatClient:
         *,
         timeout_s: float = DEFAULT_TIMEOUT_S,
         attempts: int = 3,
+        hedge_after_s: float = 0.0,
     ) -> None:
         self.model = settings.llm_model
         self._base_url = settings.llm_base_url.rstrip("/")
@@ -138,6 +149,10 @@ class OpenAICompatClient:
         self._pricing = pricing or load_pricing()
         self._timeout_s = timeout_s
         self._attempts = attempts
+        self._hedge_after_s = hedge_after_s
+        # One client per process keeps the TLS connection alive; creating one
+        # per call paid a handshake on every step for no reason.
+        self._http = httpx.AsyncClient(timeout=timeout_s)
         if not self._api_key:
             raise LLMError("LLM_API_KEY is empty; put it in .env (see .env.example)")
 
@@ -163,30 +178,76 @@ class OpenAICompatClient:
         last_error: Exception | None = None
         for attempt in range(1, self._attempts + 1):
             try:
-                async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-                    response = await client.post(
-                        f"{self._base_url}/chat/completions",
-                        headers={"Authorization": f"Bearer {self._api_key}"},
-                        json=payload,
-                    )
-            except httpx.TransportError as exc:  # network, DNS, timeout
+                return await self._complete_with_hedge(payload, started)
+            except RetryableLLMError as exc:
                 last_error = exc
-                if attempt < self._attempts:
-                    await asyncio.sleep(0.5 * 2**attempt + random.random() * 0.2)
-                    continue
-                raise LLMError(f"transport failure after {attempt} attempts: {exc}") from exc
-
-            if response.status_code in RETRYABLE_STATUS and attempt < self._attempts:
-                last_error = LLMError(f"HTTP {response.status_code}")
+                if attempt >= self._attempts:
+                    break
                 await asyncio.sleep(0.5 * 2**attempt + random.random() * 0.2)
-                continue
-            if response.status_code >= 400:
-                raise LLMError(
-                    f"HTTP {response.status_code} from {self._base_url}: {response.text[:400]}"
-                )
-            return self._parse(response.json(), started)
-
         raise LLMError(f"exhausted retries: {last_error}")
+
+    async def _complete_with_hedge(self, payload: dict[str, Any], started: float) -> LLMResult:
+        """Return the first successful copy of the request.
+
+        Provider latency is bimodal: ~94% of calls answer in 1-2s, ~6% stall for
+        15-19s. A timeout would kill the slow-but-valid ones, so instead a second
+        identical request is started after ``hedge_after_s`` and the first answer
+        wins. Only slow calls pay for the duplicate.
+        """
+        if self._hedge_after_s <= 0:
+            return await self._post(payload, started)
+
+        primary = asyncio.create_task(self._post(payload, started))
+        done, _ = await asyncio.wait({primary}, timeout=self._hedge_after_s)
+        if primary in done:
+            return primary.result()
+
+        secondary = asyncio.create_task(self._post(payload, started))
+        done, pending = await asyncio.wait(
+            {primary, secondary}, return_when=asyncio.FIRST_COMPLETED
+        )
+        for task in pending:
+            task.cancel()
+
+        errors: list[BaseException] = []
+        winner: asyncio.Task[LLMResult] | None = None
+        for task in done:
+            if task.cancelled():
+                continue
+            exc = task.exception()
+            if exc is None:
+                winner = task
+                break
+            errors.append(exc)
+        if winner is None:
+            # A hard 4xx is not worth retrying, even if the other copy failed.
+            hard = [exc for exc in errors if not isinstance(exc, RetryableLLMError)]
+            if hard:
+                raise hard[0]
+            raise RetryableLLMError(f"both hedge copies failed: {errors}")
+
+        return replace(winner.result(), hedged=True, hedge_won=winner is secondary)
+
+    async def _post(self, payload: dict[str, Any], started: float) -> LLMResult:
+        try:
+            response = await self._http.post(
+                f"{self._base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                json=payload,
+            )
+        except httpx.TransportError as exc:  # network, DNS, timeout
+            raise RetryableLLMError(f"transport failure: {exc}") from exc
+
+        if response.status_code in RETRYABLE_STATUS:
+            raise RetryableLLMError(f"HTTP {response.status_code}")
+        if response.status_code >= 400:
+            raise LLMError(
+                f"HTTP {response.status_code} from {self._base_url}: {response.text[:400]}"
+            )
+        return self._parse(response.json(), started)
+
+    async def aclose(self) -> None:
+        await self._http.aclose()
 
     def _parse(self, payload: dict[str, Any], started: float) -> LLMResult:
         choices = _expect(payload, "choices", list)
@@ -326,7 +387,10 @@ def build_llm(settings: Settings, *, mode: str | None = None) -> LLMClient:
     """Live by default; ``FINTRACE_LLM_MODE=record|replay`` switches to cassettes."""
     resolved = mode or os.environ.get("FINTRACE_LLM_MODE", "live")
     client = OpenAICompatClient(
-        settings, timeout_s=settings.llm_timeout_s, attempts=settings.llm_attempts
+        settings,
+        timeout_s=settings.llm_timeout_s,
+        attempts=settings.llm_attempts,
+        hedge_after_s=settings.llm_hedge_after_s,
     )
     if resolved == "live":
         return client

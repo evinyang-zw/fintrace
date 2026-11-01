@@ -27,6 +27,8 @@ class TraceStep:
     tokens_cached: int = 0
     llm_latency_ms: int = 0
     peak: bool = False
+    hedged: bool = False
+    hedge_won: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -44,6 +46,8 @@ class TraceStep:
             "cost_usd": self.cost_usd,
             "llm_latency_ms": self.llm_latency_ms,
             "peak": self.peak,
+            "hedged": self.hedged,
+            "hedge_won": self.hedge_won,
         }
 
 

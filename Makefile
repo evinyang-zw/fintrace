@@ -57,6 +57,9 @@ annotation: ## 生成 60 条判官盲标包（data/annotation/labels.csv）
 kappa: ## 用人工标签计算加权 κ（需先填 labels.csv）
 	PYTHONPATH=. $(UV) run python scripts/kappa.py
 
+hedge-bench: ## 用本地假服务验证对冲请求（10s 慢调用 -> 1s）
+	PYTHONPATH=. $(UV) run python scripts/hedge_bench.py
+
 ask: ## 问一个临时问题：make ask Q="苹果 FY2024 营收？" UNIVERSE=AAPL
 	$(UV) run python -m agent.cli "$(Q)" --universe "$${UNIVERSE:-AAPL}" $(ARGS)
 
@@ -85,4 +88,4 @@ check: lint type test ## 提交前全量检查
 pricing: ## 校验单价表（峰谷/缓存规则 + served model 对齐）
 	$(UV) run python -m agent.pricing
 
-.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask trace test lint fmt type check pricing embed embed-smoke rerank-smoke ablate annotation kappa
+.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask trace test lint fmt type check pricing embed embed-smoke rerank-smoke ablate annotation kappa hedge-bench

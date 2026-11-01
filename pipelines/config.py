@@ -67,6 +67,9 @@ class Settings:
     # 20-40s provider stalls, so bound each call and retry once.
     llm_timeout_s: float = 25.0
     llm_attempts: int = 2
+    # Start a duplicate request if the first has not answered in N seconds.
+    # 0 disables hedging (useful for A/B and for replay).
+    llm_hedge_after_s: float = 3.5
     # W3 retrieval stack. Empty key means "degrade to BM25 and say so".
     embedding_base_url: str = DEFAULT_EMBEDDING_BASE_URL
     embedding_model: str = DEFAULT_EMBEDDING_MODEL
@@ -99,6 +102,7 @@ class Settings:
             llm_thinking=pick("LLM_THINKING", "disabled"),
             llm_timeout_s=_as_float("LLM_TIMEOUT_S", pick("LLM_TIMEOUT_S", "25")),
             llm_attempts=_as_int("LLM_ATTEMPTS", pick("LLM_ATTEMPTS", "2")),
+            llm_hedge_after_s=_as_float("LLM_HEDGE_AFTER_S", pick("LLM_HEDGE_AFTER_S", "3.5")),
             embedding_base_url=pick("EMBEDDING_BASE_URL", DEFAULT_EMBEDDING_BASE_URL),
             embedding_model=pick("EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL),
             embedding_dim=_as_int(
