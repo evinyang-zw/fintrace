@@ -55,3 +55,29 @@ make kappa            # 读 data/annotation/labels.csv
 - κ ≥ 0.6：判官可用，把 κ 写进 W3 报告与后续所有对比。
 - κ < 0.6：按分歧案例改 rubric（`eval/llm_judge.py` 的 `_SYSTEM`），**提升 `RUBRIC_VERSION`**，
   重跑判官（人标不动），最多两轮；仍不达标就承认判官不可用，F2 继续标"未计分"。
+
+
+## 引用校验器（30 条 claim）
+
+```bash
+make citation-annotation   # 生成 data/annotation/citation_labels.csv（5 类各 6）
+```
+
+每行是一条被引用的句子（`claim`）和它引用的证据（`spans`；数字题会给出 XBRL fact 的
+tag/value/period）。把 `label` 填成三者之一：
+
+| label | 含义 |
+|---|---|
+| `supported` | 证据中有一处直接支持句子的核心主张 |
+| `partial` | 只支持一部分，或需要额外推断 |
+| `unsupported` | 无关、只沾边，或与主张矛盾 |
+
+规则与判官一致：不因措辞扣分；证据是一大段时，只要其中有一句直接支持就算 supported；
+整段都没提到主张里的关键数字/事实则为 unsupported。
+
+```bash
+uv run python scripts/label_citation.py   # 终端逐条标注，可中断续标
+make citation-kappa                       # 输出一致率、加权 κ、混淆分布、前 10 条分歧
+```
+
+目标同样是 κ ≥ 0.6；不达标先改 checker 的 system prompt，而不是改人标。

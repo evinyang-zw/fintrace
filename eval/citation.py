@@ -89,6 +89,13 @@ def extract_claims(text: str) -> tuple[list[Claim], int]:
     return claims, uncited
 
 
+@dataclass(frozen=True, slots=True)
+class ClaimContext:
+    text: str
+    spans: tuple[str, ...]
+    fact_handles: tuple[str, ...]
+
+
 class CitationChecker:
     name = "citation-llm"
 
@@ -115,69 +122,80 @@ class CitationChecker:
             return None
         return int(cast(int, row["char_start"])), str(row["text"])
 
-    async def check(self, question: Question, answer: Answer) -> CitationReport:
-        if answer.refused:
-            return CitationReport(0.0, 0, 0, 0, 0, 0, "citation: refused")
+    def contexts(self, answer: Answer) -> tuple[list[ClaimContext], int]:
+        """What the checker will judge: sentence, spans, and any fact handles."""
         claims, uncited = extract_claims(answer.text)
-        if not claims:
-            return CitationReport(
-                0.0, 0, 0, 0, uncited, 0, f"citation: no cited claim ({uncited} uncited)"
-            )
-
-        labels: list[str | None] = [None] * len(claims)
-        pending: list[dict[str, Any]] = []
-        fact_map = {fact.handle: fact for fact in answer.facts}
         text_map = {citation.handle: citation for citation in answer.citations if citation.handle}
-
-        for index, claim in enumerate(claims):
-            fact_handles = [handle for handle in claim.handles if handle.startswith("F")]
+        out: list[ClaimContext] = []
+        for claim in claims:
+            fact_handles = tuple(h for h in claim.handles if h.startswith("F"))
             if fact_handles:
-                labels[index] = self._fact_label(claim.text, fact_handles, fact_map)
+                out.append(ClaimContext(claim.text, (), fact_handles))
                 continue
-            spans = [
-                self._span_text(text_map[handle])
+            spans = tuple(
+                span
                 for handle in claim.handles
                 if handle.startswith("K") and handle in text_map
-            ]
-            pending.append(
-                {
-                    "i": index + 1,
-                    "claim": claim.text,
-                    "spans": [span for span in spans if span][:3],
-                }
+                for span in [self._span_text(text_map[handle])]
+                if span
             )
+            out.append(ClaimContext(claim.text, spans[:3], ()))
+        return out, uncited
+
+    async def label_claims(self, answer: Answer) -> list[str]:
+        contexts, _ = self.contexts(answer)
+        fact_map = {fact.handle: fact for fact in answer.facts}
+        labels: list[str | None] = [None] * len(contexts)
+        pending: list[dict[str, Any]] = []
+        for index, context in enumerate(contexts):
+            if context.fact_handles:
+                labels[index] = self._fact_label(context.text, list(context.fact_handles), fact_map)
+            else:
+                pending.append(
+                    {"i": index + 1, "claim": context.text, "spans": list(context.spans)}
+                )
 
         if pending and self._llm is not None:
-            try:
-                result = await self._llm.complete(
-                    [
-                        Message("system", _SYSTEM),
-                        Message("user", json.dumps(pending, ensure_ascii=False, indent=2)),
-                    ],
-                    max_tokens=800,
-                    json_mode=True,
-                )
-                parsed = self._parse(result.text)
-            except LLMError as exc:
-                return CitationReport(0.0, 0, 0, 0, uncited, len(claims), f"citation_error: {exc}")
+            result = await self._llm.complete(
+                [
+                    Message("system", _SYSTEM),
+                    Message("user", json.dumps(pending, ensure_ascii=False, indent=2)),
+                ],
+                max_tokens=800,
+                json_mode=True,
+            )
+            parsed = self._parse(result.text)
             for entry in pending:
                 labels[int(entry["i"]) - 1] = parsed.get(int(entry["i"]), "unsupported")
         else:
             for entry in pending:
                 labels[int(entry["i"]) - 1] = "unsupported"
+        return [label or "unsupported" for label in labels]
 
-        final = [label or "unsupported" for label in labels]
-        supported = sum(1 for label in final if label == "supported")
-        partial = sum(1 for label in final if label == "partial")
-        unsupported = sum(1 for label in final if label == "unsupported")
-        score = (supported + 0.5 * partial) / len(claims)
+    async def check(self, question: Question, answer: Answer) -> CitationReport:
+        if answer.refused:
+            return CitationReport(0.0, 0, 0, 0, 0, 0, "citation: refused")
+        contexts, uncited = self.contexts(answer)
+        if not contexts:
+            return CitationReport(
+                0.0, 0, 0, 0, uncited, 0, f"citation: no cited claim ({uncited} uncited)"
+            )
+        try:
+            labels = await self.label_claims(answer)
+        except LLMError as exc:
+            return CitationReport(0.0, 0, 0, 0, uncited, len(contexts), f"citation_error: {exc}")
+
+        supported = sum(1 for label in labels if label == "supported")
+        partial = sum(1 for label in labels if label == "partial")
+        unsupported = sum(1 for label in labels if label == "unsupported")
+        score = (supported + 0.5 * partial) / len(labels)
         return CitationReport(
             score=score,
             supported=supported,
             partial=partial,
             unsupported=unsupported,
             uncited=uncited,
-            total=len(claims),
+            total=len(labels),
             notes="",
         )
 
