@@ -103,8 +103,18 @@ $ make resume THREAD=20261111-220141-adhoc-1b5964 ACTION=approve
 答案: … [F1]   cost=$0.00031
 ```
 
-第二条命令是**新进程**。中间 `kill -9` 后恢复的自动化版本在 `tests/test_graph.py`：
-`test_postgres_checkpoint_survives_new_agent` 用两个独立 Agent 实例（各自连接）验证同一 thread。
+第二条命令是**新进程**。完整证据还包括一次真实的 `kill -9`：
+
+```
+$ python -u /tmp/hitl_hold.py        # 跑到 interrupt，打印 thread，然后 sleep
+THREAD 20261111-230344-kill9-cbfcfb
+$ kill -9 <pid>
+$ make resume THREAD=20261111-230344-kill9-cbfcfb ACTION=approve
+答案: 苹果 FY2024 … 3910.35 亿美元 [F1]
+```
+
+自动化回归在 `tests/test_graph.py::test_postgres_checkpoint_survives_new_agent`：
+两个独立 `GraphAgent` 实例（各自连接）共享同一个 Postgres checkpoint，验证同一 thread 可恢复。
 
 设计上做了两个刻意的隔离：
 
