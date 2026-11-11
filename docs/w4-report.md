@@ -179,6 +179,7 @@ $ make resume THREAD=20261111-230344-kill9-cbfcfb ACTION=approve
 | 第三方 MCP 互操作 | 未做 | 演示价值 > 能力证明，留给 W5 |
 | 子图 | 扁平图 | 单流程无复用收益（ADR-006） |
 | MCP 超时 3s | **5s** | 检索含 embedding/rerank，3s 会误杀（ADR-007） |
+| 演示 GIF（中断 → 恢复） | 未录 | 用本报告第 4 节的终端记录替代；S6 再做 5 分钟视频 |
 
 ## 9. 限制
 
