@@ -30,6 +30,7 @@ app = typer.Typer(add_completion=False)
 console = Console()
 
 MIN_PER_CATEGORY = 5
+MIN_TOTAL = 50
 
 _CITATION_RE = re.compile(
     r"^(?P<ticker>[A-Z]{1,6})/(?P<form>10-[KQ](?:/A)?)/(?P<fy>FY\d{4})#(?P<item>\d{1,2}[A-C]?)$"
@@ -43,6 +44,9 @@ def _check_structure(questions: list[Question]) -> list[str]:
     if duplicates:
         errors.append(f"duplicate ids: {duplicates}")
 
+    if len(questions) < MIN_TOTAL:
+        errors.append(f"dataset has {len(questions)} questions, need >= {MIN_TOTAL}")
+
     counts = Counter(q.category for q in questions)
     for category in CATEGORY_LABELS:
         if counts[category] < MIN_PER_CATEGORY:
@@ -55,6 +59,8 @@ def _check_structure(questions: list[Question]) -> list[str]:
                 errors.append(f"{q.id}: adversarial question needs corpus_ref")
             elif not (adversarial_dir / q.corpus_ref).exists():
                 errors.append(f"{q.id}: corpus file not found: {adversarial_dir / q.corpus_ref}")
+        if "citation_trap" in q.tags and len(q.required_citations) != 1:
+            errors.append(f"{q.id}: citation_trap needs exactly one required citation")
         if q.must_refuse and q.gold is not None:
             errors.append(f"{q.id}: unanswerable question must not define gold")
         if not q.must_refuse and q.category in {"calculation", "comparison"} and q.gold is None:

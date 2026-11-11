@@ -14,15 +14,16 @@
 |---|---|
 | 数据摄取（EDGAR 10-K/10-Q + XBRL） | W1 完成 |
 | 评测协议 / NullAgent / 指标 / bootstrap | W1 完成 |
-| 金标题（45 题：F2 15、C2 10，其余 5） | W1 起 30 题；W3 扩到 45 |
+| 金标题（50 题：F2 15、C2 10、F1 10 含 5 道引用陷阱） | W1 30 → W3 45 → W4 50 |
 | 检索（BM25 / dense / RRF / rerank） | W3 实现三档，可显式降级 |
 | 引用（结构 → claim 级语义） | W3：数字引 `F#`，正文引 `K#` |
 | 语义判官（LLM + 缓存 + 自一致性） | W3 实现；60 条 κ 校准待做 |
-| Agent 编排（手写 ReAct） | W2 完成；LangGraph 版 W4 |
+| Agent 编排 | W2 手写 ReAct；W4 LangGraph 图（checkpoint / interrupt / verify-repair） |
 | trace 回看 / 离线回放 | W2 完成，W3 记录检索档位与降级原因 |
-| MCP 工具服务 | W4 |
+| MCP 工具服务 | W4：4 工具独立进程，stdlib + 契约测试 |
 | CI（GitHub Actions，含 Postgres service） | W1 完成，W2 加 fixtures 冒烟 |
 | 生产化（镜像 / 部署 / 监控） | W5 |
+| HITL（中断 / 恢复 / 人工放行） | W4：Postgres checkpoint，跨进程恢复 |
 
 ## W3 检索栈（2026-10-30）
 
@@ -55,6 +56,33 @@ make ablate        # 三档 × 2 seed 的消融（会写 reports/ablation/）
 rerank 92.5/97.5%；档位差异仍在噪声内。判官 60 条盲标加权 κ = 0.795，
 判官自一致性 100%（20 条重跑）；引用校验器 30 条 claim 加权 κ = 0.634。完整表格见
 [docs/w3-report.md](docs/w3-report.md) §11。
+
+## W4 图编排（2026-11-11）
+
+手写 ReAct 换成了 LangGraph 图：`agent → tools → verify → repair → review → finalize`。
+内层推理不变（ADR-006），新增的是状态机、Postgres checkpoint、人工中断和生成时校验。
+
+**A/B（50 题 × 4 seed，两个 Agent 同为 9 步预算，LLM 判官）**
+
+| | react | graph |
+|---|---|---|
+| 正确率（n=180 配对） | 95.0% | **95.0%**，Δ CI `[-3.3, +3.9]` |
+| 引用支撑率 | 90.9% | **94.4%** |
+| F2 多跳 | 85.0% | **90.0%** |
+| 单题成本 / p95 | $0.00063 / ~13s | $0.00065 / ~14s |
+
+MCP 版本（工具跑在独立进程）与进程内版能力一致；8 条契约测试覆盖 schema、坏参数、超时和只读。
+工具描述实验：现行描述 17/20 选对，极简描述 15/20——描述是接口的一部分。
+
+```bash
+make graph-ask Q="苹果 FY2024 营收？"              # 图版单问
+make graph-ask Q="..." ARGS="--review"            # 先中断，人工审
+make resume THREAD=... ACTION=approve             # 新进程恢复
+FINTRACE_TOOL_BACKEND=mcp make eval AGENT=graph   # 工具走 MCP
+make compare A=reports/a.json B=reports/b.json    # 配对比较
+```
+
+完整数据与失败分析见 [docs/w4-report.md](docs/w4-report.md)。
 
 ## W2 基线（2026-10-29）
 

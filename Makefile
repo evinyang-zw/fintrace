@@ -69,8 +69,17 @@ citation-kappa: ## 引用校验器的人工 κ（需先填 citation_labels.csv�
 ask: ## 问一个临时问题：make ask Q="苹果 FY2024 营收？" UNIVERSE=AAPL
 	$(UV) run python -m agent.cli "$(Q)" --universe "$${UNIVERSE:-AAPL}" $(ARGS)
 
+graph-ask: ## 走图版：make graph-ask Q="..." UNIVERSE=AAPL [ARGS="--review"]
+	$(UV) run python -m agent.graph_cli ask "$(Q)" --universe "$${UNIVERSE:-AAPL}" $(ARGS)
+
+resume: ## 恢复中断的图：make resume THREAD=... ACTION=approve
+	$(UV) run python -m agent.graph_cli resume "$(THREAD)" --action "$${ACTION:-approve}" --text "$${TEXT:-}"
+
 ingest-fixtures: ## 对抗语料入库（A1 题的前置）
 	$(UV) run python -m pipelines.fixtures
+
+compare: ## 配对比较两份报告：make compare A=reports/a.json B=reports/b.json
+	$(UV) run python scripts/compare_agents.py "$(A)" "$(B)" $(ARGS)
 
 trace: ## 打开 trace 回看页（Streamlit）
 	$(UV) run streamlit run web/trace_app.py
@@ -94,4 +103,4 @@ check: lint type test ## 提交前全量检查
 pricing: ## 校验单价表（峰谷/缓存规则 + served model 对齐）
 	$(UV) run python -m agent.pricing
 
-.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask trace test lint fmt type check pricing embed embed-smoke rerank-smoke ablate annotation kappa hedge-bench citation-annotation citation-kappa
+.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask graph-ask resume compare trace test lint fmt type check pricing embed embed-smoke rerank-smoke ablate annotation kappa hedge-bench citation-annotation citation-kappa

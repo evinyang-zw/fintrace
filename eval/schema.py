@@ -81,6 +81,10 @@ class Answer(BaseModel):
     retrieval: list[dict[str, Any]] = Field(default_factory=list)
     usage: Usage = Field(default_factory=Usage)
     trace_id: str = ""
+    # W4: set when the graph's verify node could not repair the draft. The
+    # answer is still returned (eval must not hang), but it is marked so reports
+    # can count "shipped with a known warning" separately from clean answers.
+    verification_failed: bool = False
 
 
 class Gold(BaseModel):
@@ -114,6 +118,9 @@ class Question(BaseModel):
     required_citations: list[str] = Field(default_factory=list)
     key_points: list[str] = Field(default_factory=list)
     must_refuse: bool = False
+    # Free-form labels for subset analysis (e.g. ``citation_trap``) without
+    # changing ``category``, which drives the report's main tables.
+    tags: list[str] = Field(default_factory=list)
     corpus: Literal["edgar", "adversarial"] = "edgar"
     corpus_ref: str | None = None
     rubric: dict[str, str] = Field(default_factory=dict)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -11,8 +12,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from agent.graph import GraphAgent, GraphConfig
 from agent.pricing import load_pricing
-from agent.react import ReactAgent
+from agent.react import ReactAgent, ReactConfig
 from eval.agents.null import NullAgent
 from eval.graders import DeterministicJudge
 from eval.judge import RuleJudge, W3Judge
@@ -21,12 +23,19 @@ from eval.report import write_reports
 from eval.schema import Agent, Judge, Question
 from pipelines.config import Settings
 
-DEFAULT_DATASET = Path("eval/datasets/gold_v1.jsonl")
+DEFAULT_DATASET = Path("eval/datasets/gold_v2.jsonl")
 DEFAULT_OUT = Path("reports")
+
+
+def _max_steps() -> int:
+    """Both agents share one step budget so an A/B never compares budgets."""
+    return int(os.environ.get("AGENT_MAX_STEPS", "7"))
+
 
 AGENTS: dict[str, Callable[[], Agent]] = {
     "null": NullAgent,
-    "react": lambda: ReactAgent(Settings.from_env()),
+    "react": lambda: ReactAgent(Settings.from_env(), config=ReactConfig(max_steps=_max_steps())),
+    "graph": lambda: GraphAgent(Settings.from_env(), config=GraphConfig(max_steps=_max_steps())),
 }
 JUDGES: dict[str, Callable[[], Judge]] = {
     "rule": RuleJudge,
