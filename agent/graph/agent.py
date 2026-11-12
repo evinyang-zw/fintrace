@@ -385,10 +385,14 @@ def build_nodes(deps: GraphDeps) -> dict[str, Callable[..., Any]]:
         if not text:
             problems.append("最终答案为空")
 
-        if deps.checker is not None and text and not unknown:
+        checker = deps.checker
+        if checker is None and cfg.verify_semantic:
+            checker = CitationChecker(deps.settings)
+            deps.checker = checker
+        if checker is not None and text and not unknown:
             partial = _answer_from_parts(state, store)
             try:
-                citation_report = await deps.checker.check(
+                citation_report = await checker.check(
                     Question.model_validate(state["question"]), partial
                 )
             except Exception as exc:  # verification must not kill the run
@@ -793,11 +797,9 @@ class GraphAgent:
             self._backend = backend
         else:
             self._backend = self._make_backend(os.environ.get("FINTRACE_TOOL_BACKEND", "inproc"))
-        self._checker = (
-            checker
-            if checker is not None
-            else (CitationChecker(settings) if self.config.verify_semantic else None)
-        )
+        # Built lazily on the first non-refusal verify: constructing it needs an
+        # LLM client (and an API key), which a refusal-only run never uses.
+        self._checker = checker
         self._checkpointer_mode = checkpointer
         self._stack = AsyncExitStack()
         self._deps = GraphDeps(
