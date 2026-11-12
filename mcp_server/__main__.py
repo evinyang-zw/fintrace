@@ -16,6 +16,7 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 
 from agent.graph.state import fact_record, handle_record
+from agent.retrieval import Retriever
 from agent.tools import EvidenceStore, ToolExecutor
 from pipelines.config import Settings
 
@@ -29,7 +30,11 @@ server = MCPServer(
 def _call(tool: str, args: dict[str, Any]) -> dict[str, Any]:
     settings = Settings.from_env()
     store = EvidenceStore()
-    executor = ToolExecutor(settings.database_url, store)
+    # Must use the same retrieval tier as the in-process backend; otherwise the
+    # MCP path silently degrades to BM25 when RETRIEVAL_TIER=hybrid.
+    executor = ToolExecutor(
+        settings.database_url, store, retrieval=Retriever.from_settings(settings)
+    )
     outcome = executor.execute(tool, args)
     return {
         "ok": outcome.ok,

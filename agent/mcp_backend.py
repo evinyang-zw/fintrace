@@ -32,6 +32,14 @@ _HANDLE = re.compile(r"\[([KF])(\d+)\]")
 _JSON_HANDLE = re.compile(r'"([KF]\d+)"')
 
 
+def _content_text(result: CallToolResult) -> str:
+    for item in result.content or []:
+        text = getattr(item, "text", None)
+        if text:
+            return str(text)
+    return ""
+
+
 def _remap(text: str, mapping: dict[str, str]) -> str:
     def bracket(match: re.Match[str]) -> str:
         key = f"{match.group(1)}{match.group(2)}"
@@ -147,6 +155,19 @@ class MCPBackend:
                 False, "mcp_error", f"ERROR[mcp_error]: {type(exc).__name__}: {exc}"
             )
 
+        # MCP validates the JSON schema before our tool runs, so a missing
+        # argument comes back as a protocol error. Map it onto the same
+        # ``bad_args`` code the in-process tool would have returned; the message
+        # still names the missing fields, which is what the model needs.
+        if result.is_error:
+            text = _content_text(result)
+            code = (
+                "bad_args"
+                if "validation error" in text.lower() or "field required" in text.lower()
+                else "mcp_error"
+            )
+            return BackendResult(False, code, f"ERROR[{code}]: {text}")
+
         payload = result.structured_content
         if payload is None:
             first = result.content[0] if result.content else None
@@ -155,9 +176,6 @@ class MCPBackend:
                 payload = json.loads(text)
             except json.JSONDecodeError:
                 return BackendResult(False, "mcp_error", f"ERROR[mcp_error]: {text[:200]}")
-        if result.is_error:
-            return BackendResult(False, "mcp_error", f"ERROR[mcp_error]: {payload}")
-
         mapping: dict[str, str] = {}
         for record in payload.get("handles", []):
             handle = store.add(

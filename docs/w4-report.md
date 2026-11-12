@@ -63,6 +63,10 @@ C2 的差值全部来自 c2-004（WMT 用 net sales 还是 total revenue），�
 唯一差异是 c2-004；MCP 边界**没有改变能力**。p95 +1.7s 主要来自本轮 provider 抖动与 9 步上下文，
 单次工具往返实测 <50ms。
 
+比多跑几个 seed 更硬的证据是**接口等价测试**（`tests/test_mcp_equivalence.py`）：同一仓库、
+同一检索档位、同一组参数下，进程内与 MCP 返回的 observation **逐字节一致**（覆盖成功调用与
+工具级错误）；MCP 协议层的参数校验错误被客户端映射成同一个 `bad_args` 码，消息仍点名缺失字段。
+
 ### 2.3 成本与延迟
 
 | | react | graph |
@@ -129,6 +133,9 @@ $ make resume THREAD=20261111-230344-kill9-cbfcfb ACTION=approve
 - 契约测试 8 条：工具清单/schema、正常返回、坏参数结构化错误、无句柄证据、句柄重建、超时、只读静态检查、句柄重映射。
 - **stdio 的 cancel scope 必须在同一任务内进出**：第一版跨节点复用 Client，`aclose()` 直接抛
   `Attempted to exit cancel scope in a different task`，评测进程挂死。改成常驻 worker 任务后解决（ADR-007）。
+- **等价测试抓到一个真 bug**：服务端的 `ToolExecutor` 没有传 `Retriever.from_settings`，
+  于是 `RETRIEVAL_TIER=hybrid` 时 MCP 路径会静默退回 BM25。单看端到端分数发现不了——
+  因为当时的 `.env` 是 bm25。修复后才算真正等价。
 
 **工具描述实验**（20 条路由用例，只选工具不执行）：
 
@@ -185,7 +192,8 @@ $ make resume THREAD=20261111-230344-kill9-cbfcfb ACTION=approve
 
 - **n 小。** 每个 seed 45 道计分题；4 seed 合并 180 对，CI 仍有 ±3.5pt。小于 2 题的差异不要解释。
 - **判官不是神。** LLM 判官 κ=0.795；F2 的"部分正确"仍有争议。
-- **MCP A/B 只有 1 seed**，且用 deterministic 判官（F2 不计分），只能证明"没有能力回退"。
+- **MCP 的端到端 A/B 只有 1 seed**（deterministic 判官，F2 不计分）；但工具层有逐字节的
+  等价测试，所以"进程边界不改变工具行为"这一结论不依赖统计。
 - **p95 受 provider 抖动主导**，13s 与 14s 的差别可能来自网络，不是代码。
 - **c2-004 仍是已知歧义题**：WMT 的 `net sales` 与 `total revenue` 都合理，两个 Agent 都偶尔选错。
 
