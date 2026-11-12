@@ -237,7 +237,7 @@ $ make resume THREAD=20261111-230344-kill9-cbfcfb ACTION=approve
 
 | 计划条目 | 状态 | 证据 / 说明 |
 |---|---|---|
-| A 图骨架（state/nodes/build/checkpointer） | ✅ | `agent/graph/`；`tests/test_graph.py` 11 条 |
+| A 图骨架（state/nodes/build/checkpointer） | ✅ | `agent/graph/`；`tests/test_graph.py` 12 条 |
 | B 校验回环：数字 | ✅ | `_numeric_problems`，只查 F# claim；4 条单测 |
 | B 校验回环：引用 | ✅ | 句柄存在 + evidence + claim 级语义；W3 checker |
 | B 校验回环：政策 | ✅ 2/3 | 过度断言 + 注入值采纳（正反用例）；"拒答一致性"未做，见 §8 |
