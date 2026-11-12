@@ -91,3 +91,14 @@ CREATE TABLE IF NOT EXISTS chunk_vectors (
 );
 
 CREATE INDEX IF NOT EXISTS chunk_vectors_model_idx ON chunk_vectors (model);
+
+-- W4 HITL: runs paused at the review node. Written before interrupt(), removed
+-- in finalize(), so the Streamlit page can list "awaiting review" without
+-- poking at LangGraph's checkpoint tables.
+CREATE TABLE IF NOT EXISTS review_queue (
+    thread_id   TEXT PRIMARY KEY,
+    question_id TEXT,
+    draft       TEXT NOT NULL,
+    verification JSONB,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);

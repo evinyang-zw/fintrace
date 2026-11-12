@@ -134,3 +134,59 @@ def test_server_is_read_only_by_source() -> None:
 def test_remap_rewrites_bracket_and_json_handles() -> None:
     assert _remap("[K1] then [K2]", {"K1": "K4", "K2": "K5"}) == "[K4] then [K5]"
     assert _remap('{"handle": "K1"}', {"K1": "K7"}) == '{"handle": "K7"}'
+
+
+@pytest.mark.asyncio
+async def test_every_tool_rejects_missing_arguments() -> None:
+    """4 tools x the protocol-level contract: missing args must not crash."""
+    async with _client() as client:
+        results = {}
+        for name in EXPECTED_TOOLS:
+            result = await client.call_tool(name, {})
+            results[name] = result
+    for name, result in results.items():
+        assert result.is_error, f"{name} accepted an empty argument object"
+        text = "".join(getattr(item, "text", "") for item in result.content or [])
+        assert "required" in text.lower() or "validation" in text.lower()
+
+
+@pytest.mark.asyncio
+async def test_not_found_paths_are_structured_errors(seeded_db: None) -> None:
+    async with _client() as client:
+        cases = [
+            ("search_filings", {"query": "revenue", "tickers": ["NOPE"], "as_of": "2024-12-31"}),
+            ("get_section", {"doc_id": "missing-doc", "item": "7"}),
+            ("xbrl_fact", {"ticker": "NOPE", "tag_query": "revenue", "as_of": "2024-12-31"}),
+        ]
+        for name, args in cases:
+            result = await client.call_tool(name, args)
+            payload = result.structured_content or {}
+            assert payload["ok"] is False, f"{name} should fail on unknown input"
+            assert payload["code"] == "not_found", f"{name} returned {payload['code']}"
+
+
+@pytest.mark.asyncio
+async def test_empty_search_is_ok_not_an_error(seeded_db: None) -> None:
+    async with _client() as client:
+        result = await client.call_tool(
+            "search_filings",
+            {"query": "zzz-not-in-corpus-zzz", "tickers": [TICKER], "as_of": "2024-12-31"},
+        )
+    payload = result.structured_content or {}
+    assert payload["ok"] is True
+    assert payload["observation"]
+
+
+def test_schemas_match_the_agent_tool_specs() -> None:
+    from agent.tools import TOOL_SPECS
+
+    expected = {spec["name"]: set(spec["parameters"].get("properties", {})) for spec in TOOL_SPECS}
+    import anyio
+
+    async def collect() -> dict[str, set[str]]:
+        async with _client() as client:
+            tools = await client.list_tools()
+        return {tool.name: set(tool.input_schema.get("properties", {})) for tool in tools.tools}
+
+    actual = anyio.run(collect)
+    assert actual == expected

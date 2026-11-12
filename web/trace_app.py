@@ -7,12 +7,15 @@ reading JSON by hand.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
 
+from agent.graph import GraphAgent, GraphConfig
+from agent.review_queue import list_pending
 from pipelines.config import Settings
 from pipelines.db import connect
 
@@ -77,12 +80,59 @@ def render_evidence(citation: dict[str, Any], database_url: str) -> None:
     )
 
 
+def _resume(settings: Settings, thread_id: str, action: str, text: str = "") -> Any:
+    async def run() -> Any:
+        agent = GraphAgent(settings, config=GraphConfig(review_mode="always"))
+        try:
+            return await agent.resume(thread_id, {"action": action, "text": text})
+        finally:
+            await agent.aclose()
+
+    return asyncio.run(run())
+
+
+def render_review_queue(settings: Settings) -> None:
+    """The HITL entry point: every run paused at the review node, with actions."""
+    try:
+        pending = list_pending(settings.database_url)
+    except Exception as exc:  # a missing table must not break the trace viewer
+        st.caption(f"待审队列不可用：{exc}")
+        return
+    st.markdown("### 待审")
+    if not pending:
+        st.caption('暂无待审运行。用 `make graph-ask Q=... ARGS="--review"` 制造一条。')
+        return
+    for row in pending:
+        thread_id = str(row["thread_id"])
+        with st.expander(f"{thread_id} · {row.get('question_id') or '?'}", expanded=False):
+            st.text(str(row.get("draft", "")))
+            if row.get("verification"):
+                st.json(row["verification"])
+            edited = st.text_area(
+                "改写（可选）", value=str(row.get("draft", "")), key=f"edit-{thread_id}"
+            )
+            approve, reject, edit = st.columns(3)
+            if approve.button("通过", key=f"ok-{thread_id}"):
+                answer = _resume(settings, thread_id, "approve")
+                st.success(answer.text)
+                st.rerun()
+            if reject.button("拒绝", key=f"no-{thread_id}"):
+                answer = _resume(settings, thread_id, "reject")
+                st.warning(answer.text)
+                st.rerun()
+            if edit.button("改写后通过", key=f"edit-{thread_id}"):
+                answer = _resume(settings, thread_id, "edit", edited)
+                st.success(answer.text)
+                st.rerun()
+
+
 def main() -> None:
     st.set_page_config(page_title="FinTrace trace", layout="wide")
     settings = Settings.from_env()
     trace_dir = Path(settings.data_dir) / "traces"
     traces = load_traces(trace_dir)
     st.title("FinTrace · trace 回看")
+    render_review_queue(settings)
 
     if not traces:
         st.info('还没有 trace。先跑 `make eval AGENT=react` 或 `make ask Q="…"`。')

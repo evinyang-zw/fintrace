@@ -34,6 +34,8 @@ class GraphState(TypedDict, total=False):
     repairs: int
     notes: list[str]
     trace_steps: list[dict[str, Any]]
+    nodes_visited: list[str]
+    interrupts: int
     review: dict[str, Any] | None
     answer: dict[str, Any] | None
 
@@ -66,6 +68,8 @@ def initial_state(question: Question, *, messages: list[dict[str, str]]) -> Grap
         repairs=0,
         notes=[],
         trace_steps=[],
+        nodes_visited=[],
+        interrupts=0,
         review=None,
         answer=None,
     )

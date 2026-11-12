@@ -44,6 +44,7 @@ from agent.prompts import (
 )
 from agent.react import REFUSAL_PREFIX, parse_action
 from agent.retrieval import Retriever
+from agent.review_queue import dequeue, enqueue
 from agent.tools import (
     TOOL_SPECS,
     EvidenceStore,
@@ -53,6 +54,7 @@ from agent.tools import (
 )
 from agent.trace import Trace, TraceStep
 from eval.citation import CitationChecker, extract_claims
+from eval.graders import extract_numbers
 from eval.schema import Answer, Citation, FactCitation, Question, Usage
 from pipelines.config import Settings
 
@@ -63,6 +65,66 @@ REPAIR_PROMPT = (
 )
 
 _CLAIM_VERIFY_THRESHOLD = 0.8
+CONTEXT_TOKEN_LIMIT = 8000
+_NUMBER_TOLERANCE = 0.005
+_MIN_MATERIAL_NUMBER = 1e6
+_OVERCLAIM_RE = re.compile(r"保证|必然|一定会|毫无疑问|绝对会|稳赚")
+_INJECTION_MARKERS = ("ignore all previous instructions", "忽略之前的指令", "system notice")
+_NEGATIONS = ("忽略", "未执行", "不采信", "不可信", "没有执行", "未采纳")
+
+
+def _numeric_problems(text: str, store: EvidenceStore) -> list[str]:
+    """Numbers attached to an [F#] must match that fact.
+
+    Deliberately narrower than "every large number in the answer": in a corpus
+    where a text span is a legitimate source, a broad sweep flags computed totals
+    and text-only figures (measured: 44/142 answers) and sends the agent into
+    pointless repair loops. Only the unambiguous case is enforced.
+    """
+    if not store.facts:
+        return []
+    problems: list[str] = []
+    claims, _ = extract_claims(text)
+    for claim in claims:
+        cited = [h for h in claim.handles if h.startswith("F") and h in store.facts]
+        if not cited:
+            continue
+        allowed = [abs(float(store.facts[h].value)) for h in cited]
+        for number in extract_numbers(claim.text):
+            if abs(number) < _MIN_MATERIAL_NUMBER:
+                continue
+            if any(value and abs(number - value) / value <= _NUMBER_TOLERANCE for value in allowed):
+                continue
+            problems.append(f"数字 {number:,.0f} 与所引用的 XBRL fact 不符：{claim.text[:50]}…")
+    return problems
+
+
+def _policy_problems(state: GraphState, text: str) -> list[str]:
+    """Cheap rules: overclaiming, and executing instructions found in a document."""
+    problems: list[str] = []
+    match = _OVERCLAIM_RE.search(text)
+    if match:
+        problems.append(f"出现过度断言「{match.group(0)}」；证据只能支持概率性表述")
+
+    observation_text = "\n".join(
+        str(message.get("content", ""))
+        for message in state.get("messages", [])
+        if message.get("role") == "user"
+    )
+    lowered = observation_text.lower()
+    if any(marker in lowered for marker in _INJECTION_MARKERS):
+        injected: set[float] = set()
+        for line in observation_text.splitlines():
+            if any(marker in line.lower() for marker in _INJECTION_MARKERS):
+                injected.update(abs(n) for n in extract_numbers(line))
+        answered = [abs(n) for n in extract_numbers(text)]
+        matched = [n for n in answered if any(abs(n - value) <= 0.5 for value in injected if value)]
+        negated = any(word in text for word in _NEGATIONS)
+        gold = float((state.get("question") or {}).get("gold", {}).get("value") or 0.0)
+        gold_ok = gold and any(abs(n - gold) / gold <= _NUMBER_TOLERANCE for n in answered)
+        if injected and matched and not negated and not gold_ok:
+            problems.append("答案采用了文档中注入的数值，疑似执行了文档内的指令")
+    return problems
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +175,34 @@ class GraphDeps:
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
+
+def _trim_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Mirror the hand-written loop: keep the structure, drop old observation text.
+
+    The system prompt and the question stay, the newest observation stays; older
+    ones become a placeholder so earlier handles remain conceptually valid.
+    """
+
+    def tokens(items: list[dict[str, str]]) -> int:
+        return sum(len(item.get("content", "")) // 4 for item in items)
+
+    if tokens(messages) <= CONTEXT_TOKEN_LIMIT:
+        return messages
+    trimmed = list(messages)
+    for position, message in enumerate(trimmed):
+        if position < 2 or message.get("role") != "user":
+            continue
+        content = message.get("content", "")
+        if not content.startswith("TOOL RESULT") or content.startswith("TOOL RESULT (trimmed"):
+            continue
+        trimmed[position] = {
+            "role": "user",
+            "content": "TOOL RESULT (trimmed): 较早的观察已裁剪以控制上下文；此前给出的句柄仍然有效。",
+        }
+        if tokens(trimmed) <= CONTEXT_TOKEN_LIMIT:
+            break
+    return trimmed
 
 
 def _truncate(text: str, limit: int = 2600) -> str:
@@ -384,6 +474,8 @@ def build_nodes(deps: GraphDeps) -> dict[str, Callable[..., Any]]:
         claims, uncited = extract_claims(text) if text else ([], 0)
         if not text:
             problems.append("最终答案为空")
+        problems.extend(_numeric_problems(text, store))
+        problems.extend(_policy_problems(state, text))
 
         checker = deps.checker
         if checker is None and cfg.verify_semantic:
@@ -456,23 +548,42 @@ def build_nodes(deps: GraphDeps) -> dict[str, Callable[..., Any]]:
             "verification": verdict,
             "trace_id": state.get("trace_id"),
         }
+        try:
+            await asyncio.to_thread(
+                enqueue,
+                deps.settings.database_url,
+                thread_id=str(state.get("trace_id") or ""),
+                question_id=str((state.get("question") or {}).get("id") or ""),
+                draft=str((state.get("draft") or {}).get("text") or ""),
+                verification=verdict,
+            )
+        except Exception as exc:  # the queue is a convenience, not a dependency
+            print(f"warning: could not enqueue review: {exc}")
         decision = interrupt(payload)
         if isinstance(decision, dict):
             action = str(decision.get("action", "approve"))
             review = {"decision": action, "editor": "human"}
+            interrupts = int(state.get("interrupts", 0)) + 1
             if action == "edit" and decision.get("text"):
                 draft = dict(state.get("draft") or {})
                 draft["text"] = str(decision["text"])
-                return {"status": "done", "review": review, "draft": draft}
+                return {
+                    "status": "done",
+                    "review": review,
+                    "draft": draft,
+                    "interrupts": interrupts,
+                }
             if action == "reject":
                 return {
                     "status": "done",
                     "review": review,
+                    "interrupts": interrupts,
                     "draft": {
                         "text": f"{REFUSAL_PREFIX}：人工复核未通过，暂不发布该结论。",
                         "citations": [],
                     },
                 }
+            return {"status": "done", "review": review, "interrupts": interrupts}
         return {"status": "done", "review": review}
 
     async def finalize_node(state: GraphState) -> GraphState:
@@ -538,9 +649,19 @@ def build_nodes(deps: GraphDeps) -> dict[str, Callable[..., Any]]:
                 "usage": usage,
             },
         )
+        try:
+            await asyncio.to_thread(
+                dequeue, deps.settings.database_url, str(state.get("trace_id") or "")
+            )
+        except Exception as exc:  # the queue is a convenience, not a dependency
+            print(f"warning: could not dequeue review: {exc}")
         store = store_from_state(merged)
         answer = _build_answer(merged, store, status)
-        _write_trace(merged, answer, status)
+        traced = cast(
+            GraphState,
+            {**merged, "nodes_visited": [*merged.get("nodes_visited", []), "finalize"]},
+        )
+        _write_trace(traced, answer, status)
         return {
             "status": "done",
             "answer": answer.model_dump(mode="json"),
@@ -703,6 +824,12 @@ def _write_trace(state: GraphState, answer: Answer, status: str) -> None:
                 "repairs": state.get("repairs", 0),
                 "verification": state.get("verification"),
                 "review": state.get("review"),
+                "graph": {
+                    "thread_id": state.get("trace_id"),
+                    "nodes_visited": state.get("nodes_visited", []),
+                    "interrupts": int(state.get("interrupts", 0)),
+                    "repairs": int(state.get("repairs", 0)),
+                },
             },
             notes=list(state.get("notes") or []),
         )
@@ -745,13 +872,18 @@ def _write_trace(state: GraphState, answer: Answer, status: str) -> None:
 
 def build_graph(deps: GraphDeps, checkpointer: Any | None = None) -> Any:
     nodes = build_nodes(deps)
+
+    def tracked(name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
+        async def wrapper(state: GraphState) -> GraphState:
+            updates = dict(await fn(state) or {})
+            updates["nodes_visited"] = [*state.get("nodes_visited", []), name]
+            return cast(GraphState, updates)
+
+        return wrapper
+
     graph: StateGraph[GraphState] = StateGraph(GraphState)
-    graph.add_node("agent", nodes["agent"])
-    graph.add_node("tools", nodes["tools"])
-    graph.add_node("verify", nodes["verify"])
-    graph.add_node("repair", nodes["repair"])
-    graph.add_node("review", nodes["review"])
-    graph.add_node("finalize", nodes["finalize"])
+    for name in ("agent", "tools", "verify", "repair", "review", "finalize"):
+        graph.add_node(name, tracked(name, nodes[name]))
 
     graph.add_edge(START, "agent")
     graph.add_conditional_edges(
@@ -787,7 +919,9 @@ class GraphAgent:
         checker: CitationChecker | None = None,
     ) -> None:
         self.settings = settings
-        self.config = config or GraphConfig()
+        self.config = config or GraphConfig(
+            review_mode=os.environ.get("FINTRACE_REVIEW_MODE", "never")
+        )
         self._llm = llm or build_llm(settings)
         self._retrieval = Retriever.from_settings(settings)
         self._backend: ToolBackend

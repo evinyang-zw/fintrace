@@ -81,6 +81,9 @@ ingest-fixtures: ## 对抗语料入库（A1 题的前置）
 compare: ## 配对比较两份报告：make compare A=reports/a.json B=reports/b.json
 	$(UV) run python scripts/compare_agents.py "$(A)" "$(B)" $(ARGS)
 
+compare-agents: ## compare 的别名（与 W4 计划里的命令名一致）
+	$(UV) run python scripts/compare_agents.py "$(A)" "$(B)" $(ARGS)
+
 trace: ## 打开 trace 回看页（Streamlit）
 	$(UV) run streamlit run web/trace_app.py
 
@@ -103,4 +106,4 @@ check: lint type test ## 提交前全量检查
 pricing: ## 校验单价表（峰谷/缓存规则 + served model 对齐）
 	$(UV) run python -m agent.pricing
 
-.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask graph-ask resume compare trace test lint fmt type check pricing embed embed-smoke rerank-smoke ablate annotation kappa hedge-bench citation-annotation citation-kappa
+.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask graph-ask resume compare compare-agents trace test lint fmt type check pricing embed embed-smoke rerank-smoke ablate annotation kappa hedge-bench citation-annotation citation-kappa

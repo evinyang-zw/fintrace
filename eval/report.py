@@ -54,6 +54,7 @@ def render_markdown(
     scored = [r for r in answerable if r.grade.correctness is not None]
     correctness = [1.0 if (r.grade.correctness or 0) >= 1 else 0.0 for r in scored]
     citations = [1.0 if r.grade.citation_support >= 1.0 else 0.0 for r in answerable]
+    verification_failed = sum(1 for r in results if r.answer.verification_failed)
 
     lines = [
         f"# FinTrace 评测报告 · `{agent}`",
@@ -90,6 +91,7 @@ def render_markdown(
         f"{_delta(metrics.false_refusal_rate, baseline, 'false_refusal_rate')} | — | 可答题中被拒的比例 |",
         f"| 幻觉率 | {_pct(metrics.hallucination_rate)} | "
         f"{_delta(metrics.hallucination_rate, baseline, 'hallucination_rate')} | — | R1 中被强行回答的比例 |",
+        f"| 未过校验发布 | {verification_failed} | — | — | verification_failed=true 的答案数 |",
         f"| 单题成本 | ${metrics.cost_per_question:.4f} | — | — | LLM + 工具 |",
         f"| 延迟 p50 / p95 | {metrics.latency_p50_ms:.0f} / {metrics.latency_p95_ms:.0f} ms | — | — | 端到端 |",
         "",
@@ -105,6 +107,26 @@ def render_markdown(
             f"| {label} | {item.n} | {item.scored} | {item.answered} | {rate} | "
             f"{_pct(item.citation_support)} |"
         )
+
+    tags = sorted({tag for r in results for tag in r.question.tags})
+    if tags:
+        lines += [
+            "",
+            "## 按标签",
+            "",
+            "| 标签 | 题数 | 计分 | 正确率 | 引用支撑 |",
+            "|---|---|---|---|---|",
+        ]
+        for tag in tags:
+            subset = [r for r in results if tag in r.question.tags]
+            scored_tag = [r for r in subset if r.grade.correctness is not None]
+            correct_tag = sum(1 for r in scored_tag if (r.grade.correctness or 0) >= 1)
+            cited_tag = sum(1 for r in subset if r.grade.citation_support >= 1.0)
+            lines.append(
+                f"| {tag} | {len(subset)} | {len(scored_tag)} | "
+                f"{_pct(correct_tag / len(scored_tag) if scored_tag else 0.0)} | "
+                f"{_pct(cited_tag / len(subset) if subset else 0.0)} |"
+            )
 
     failures = [
         r
@@ -193,6 +215,32 @@ def write_reports(
             "cost_per_question": metrics.cost_per_question,
             "latency_p50_ms": metrics.latency_p50_ms,
             "latency_p95_ms": metrics.latency_p95_ms,
+            "verification_failed": sum(1 for r in results if r.answer.verification_failed),
+            "by_tag": {
+                tag: {
+                    "n": len([r for r in results if tag in r.question.tags]),
+                    "correctness": (
+                        sum(
+                            1
+                            for r in results
+                            if tag in r.question.tags
+                            and r.grade.correctness is not None
+                            and (r.grade.correctness or 0) >= 1
+                        )
+                        / max(
+                            1,
+                            len(
+                                [
+                                    r
+                                    for r in results
+                                    if tag in r.question.tags and r.grade.correctness is not None
+                                ]
+                            ),
+                        )
+                    ),
+                }
+                for tag in sorted({tag for r in results for tag in r.question.tags})
+            },
             "by_category": {
                 name: {
                     "n": item.n,
