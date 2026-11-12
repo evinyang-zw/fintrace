@@ -206,6 +206,7 @@ $ make resume THREAD=20261111-230344-kill9-cbfcfb ACTION=approve
 | 数字检查覆盖"量级 ≥1e6 的数字" | **只查带 `[F#]` 的 claim** | 4 seed 142 个答案里 44 个（31%）会被宽规则误报，repair 会空转 |
 | 引用检查一次批量调用 | **沿用 W3 逐 claim checker** | 批量会改掉已校准的判定口径（κ=0.634）；实测成本只 +3% |
 | 预算超限也触发人工 review | 预算超限直接 finalize | 评测必须能收敛；review 只在 `always` 或校验修满失败时触发 |
+| 政策检查含"拒答与证据是否一致" | **未做成规则** | 有证据时拒答也可能正确（问题超出证据范围）；硬规则会误伤，交给判官与人工 |
 | checkpoint 表单独 schema | 默认 public schema（表名 `checkpoints` / `checkpoint_*`） | 不影响业务表；独立 schema 需要额外连接参数，收益低 |
 | trace 记 `checkpoint_ids` | 只记 `thread_id` + `nodes_visited` + `interrupts` | checkpoint id 可由 `graph.get_state(thread)` 再查，trace 不重复存 |
 | 演示 GIF（中断 → 恢复） | 未录 | 用本报告第 4 节的终端记录替代；S6 再做 5 分钟视频 |
@@ -239,7 +240,7 @@ $ make resume THREAD=20261111-230344-kill9-cbfcfb ACTION=approve
 | A 图骨架（state/nodes/build/checkpointer） | ✅ | `agent/graph/`；`tests/test_graph.py` 11 条 |
 | B 校验回环：数字 | ✅ | `_numeric_problems`，只查 F# claim；4 条单测 |
 | B 校验回环：引用 | ✅ | 句柄存在 + evidence + claim 级语义；W3 checker |
-| B 校验回环：政策 | ✅ | 过度断言 + 注入值采纳；正反用例 |
+| B 校验回环：政策 | ✅ 2/3 | 过度断言 + 注入值采纳（正反用例）；"拒答一致性"未做，见 §8 |
 | B 注入错误答案被拦并修复 | ✅ | 坏句柄 → repair → 通过；修满 → `verification_failed` |
 | C HITL：interrupt / resume | ✅ | `make graph-ask --review` → `make resume`；真实 `kill -9` 后恢复 |
 | C HITL：CLI | ✅ | `agent/graph_cli.py` |
