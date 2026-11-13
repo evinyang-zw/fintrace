@@ -117,7 +117,8 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         store = RunStore(config.database_url)
         await store.open()
-        reaped = await store.reap_stale()
+        # Single instance: any row still 'running' at boot was interrupted.
+        reaped = await store.reap_stale(0)
         if reaped:
             log.warning("marked %s interrupted run(s) as failed", reaped)
 
@@ -296,9 +297,21 @@ def create_app(
             db_ok = True
         except Exception:
             db_ok = False
+        mcp_ok: bool | None = None
+        mcp_url = os.environ.get("MCP_URL", "")
+        if mcp_url:
+            import httpx
+
+            base = mcp_url.rstrip("/").removesuffix("/mcp")
+            try:
+                async with httpx.AsyncClient(timeout=1.5) as client:
+                    mcp_ok = (await client.get(f"{base}/health")).status_code == 200
+            except Exception:
+                mcp_ok = False
         return {
-            "ok": db_ok,
+            "ok": db_ok and (mcp_ok is not False),
             "db": db_ok,
+            "mcp": mcp_ok,
             "queue_depth": state.pool.depth,
             "queue_capacity": state.pool.capacity,
             "budget_spent_usd": round(await state.store.today_spend(), 6),
