@@ -22,8 +22,27 @@
 | trace 回看 / 离线回放 | W2 完成，W3 记录检索档位与降级原因 |
 | MCP 工具服务 | W4：4 工具独立进程，stdlib + 契约测试 |
 | CI（GitHub Actions，含 Postgres service） | W1 完成，W2 加 fixtures 冒烟 |
-| 生产化（镜像 / 部署 / 监控） | W5 |
+| 生产化（镜像 / 部署 / 监控） | **W5 完成**：http://47.96.253.123 |
 | HITL（中断 / 恢复 / 人工放行） | W4：Postgres checkpoint，跨进程恢复 |
+
+## 在线 Demo（W5）
+
+**http://47.96.253.123** —— 单实例、Docker Compose、阿里云 2C4G。
+
+- 首页：提问、SSE 进度、引用可展开、待审可放行
+- `/dashboard`：请求量、成功率、单题成本、p50/p95、缓存命中
+- `/api/health`：DB / 队列深度 / 当日预算
+- 访问令牌不写进仓库；公开演示用服务器上的 `DEMO_TOKEN`（限次 + 每日预算兜底）
+
+服务层是 FastAPI（`api/`）：`POST /api/ask` 入队返回 202，`GET /api/runs/{id}/events`
+推 SSE，`/api/runs/{id}/review` 恢复人工中断。app 与 MCP 工具是两个容器，
+工具通过 streamable HTTP 调用，服务端无状态、只读、句柄由客户端分配。
+
+```bash
+make api                      # 本地起服务（:8000）
+make gate                     # replay 评测门禁（对比 eval/baselines/smoke.json）
+make db-dump                  # 导出仓库（服务器恢复用）
+```
 
 ## W3 检索栈（2026-10-30）
 
