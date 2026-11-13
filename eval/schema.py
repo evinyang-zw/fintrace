@@ -59,7 +59,8 @@ class Usage(BaseModel):
     tokens_out: int = 0
     tokens_cached: int = 0  # 命中缓存的那部分输入
     model: str = ""  # served model，不是请求时用的别名
-    cost_usd: float = 0.0
+    cost_usd: float = 0.0  # LLM only
+    retrieval_cost_usd: float = 0.0  # embedding + rerank, priced per call
     peak: bool = False  # 请求落在高峰时段时记 True（成本归因用）
     latency_ms: int = 0
     tool_calls: int = 0

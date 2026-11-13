@@ -20,3 +20,10 @@ models:
     input_hit_per_mtok: 0.044
     input_miss_per_mtok: 1.32
     output_per_mtok: 3.96
+
+# W5: retrieval costs. Priced per input token, like the model vendors do.
+# List prices as of 2026-11 (text-embedding-v3 / gte-rerank-v2, Beijing region);
+# the console invoice is the source of truth. Override here, not in code.
+retrieval:
+  embedding_per_mtok: 0.07
+  rerank_per_mtok: 0.11

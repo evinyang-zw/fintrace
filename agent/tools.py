@@ -170,6 +170,10 @@ class EvidenceStore:
     # retrieval, so the metric and the answer always describe the same run.
     search_calls: list[dict[str, Any]] = field(default_factory=list)
     facts: dict[str, FactEvidence] = field(default_factory=dict)
+    # Retrieval usage for cost accounting; kept off the model-facing payload so
+    # token counters never change a prompt (and therefore never break replay).
+    embedding_tokens: int = 0
+    rerank_tokens: int = 0
     _counter: int = 0
     _fact_counter: int = 0
 
@@ -470,6 +474,8 @@ class ToolExecutor:
         mapping = self._resolve(tickers)
 
         hits, meta = self._retrieval.search(query, list(mapping.values()), as_of, k=k, form=form)
+        self._store.embedding_tokens += meta.embedding_tokens
+        self._store.rerank_tokens += meta.rerank_tokens
         if not hits:
             payload: dict[str, Any] = {
                 "results": [],

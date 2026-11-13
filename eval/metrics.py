@@ -48,6 +48,8 @@ class Metrics:
     false_refusal_rate: float
     hallucination_rate: float
     cost_per_question: float
+    llm_cost_per_question: float
+    retrieval_cost_per_question: float
     latency_p50_ms: float
     latency_p95_ms: float
     # Section-level recall@8 on multi-hop questions (the only category whose
@@ -73,7 +75,9 @@ def aggregate(results: list[ItemResult]) -> Metrics:
     recall_at_8, recall_n = _recall_at_8(results)
 
     latencies = [r.answer.usage.latency_ms for r in results]
-    costs = [r.answer.usage.cost_usd for r in results]
+    llm_costs = [r.answer.usage.cost_usd for r in results]
+    retrieval_costs = [r.answer.usage.retrieval_cost_usd for r in results]
+    costs = [a + b for a, b in zip(llm_costs, retrieval_costs, strict=True)]
 
     return Metrics(
         n=n,
@@ -90,6 +94,8 @@ def aggregate(results: list[ItemResult]) -> Metrics:
             sum(1 for r in unanswerable if not r.answer.refused), len(unanswerable)
         ),
         cost_per_question=(sum(costs) / n) if n else 0.0,
+        llm_cost_per_question=(sum(llm_costs) / n) if n else 0.0,
+        retrieval_cost_per_question=(sum(retrieval_costs) / n) if n else 0.0,
         latency_p50_ms=percentile(latencies, 0.50),
         latency_p95_ms=percentile(latencies, 0.95),
         recall_at_8=recall_at_8,

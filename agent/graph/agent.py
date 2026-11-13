@@ -36,6 +36,7 @@ from agent.graph.state import (
     store_from_state,
 )
 from agent.llm import EmptyResponseError, LLMClient, LLMError, Message, build_llm
+from agent.pricing import retrieval_cost_usd
 from agent.prompts import (
     PROMPT_VERSION,
     build_finalize_prompt,
@@ -253,8 +254,13 @@ def _step(
     }
 
 
-def _usage_from_state(state: GraphState) -> Usage:
+def _usage_from_state(state: GraphState, store: EvidenceStore | None = None) -> Usage:
     raw = state.get("usage") or empty_usage()
+    retrieval_cost = (
+        retrieval_cost_usd(store.embedding_tokens, store.rerank_tokens)
+        if store is not None
+        else 0.0
+    )
     return Usage(
         tokens_in=int(raw.get("tokens_in", 0)),
         tokens_out=int(raw.get("tokens_out", 0)),
@@ -264,6 +270,7 @@ def _usage_from_state(state: GraphState) -> Usage:
         peak=bool(raw.get("peak", False)),
         latency_ms=int(raw.get("latency_ms", 0)),
         tool_calls=int(raw.get("tool_calls", 0)),
+        retrieval_cost_usd=round(retrieval_cost, 8),
     )
 
 
@@ -719,7 +726,7 @@ def _answer_from_parts(state: GraphState, store: EvidenceStore) -> Answer:
         facts=facts,
         evidence=evidence_citations(store),
         retrieval=list(store.search_calls),
-        usage=_usage_from_state(state),
+        usage=_usage_from_state(state, store),
         trace_id=_trace_id(state),
     )
 
@@ -782,7 +789,7 @@ def _build_answer(state: GraphState, store: EvidenceStore, status: str) -> Answe
             retrieval=list(store.search_calls),
             refused=True,
             refusal_reason=reason,
-            usage=_usage_from_state(state),
+            usage=_usage_from_state(state, store),
             trace_id=_trace_id(state),
         )
 
@@ -799,7 +806,7 @@ def _build_answer(state: GraphState, store: EvidenceStore, status: str) -> Answe
         retrieval=list(store.search_calls),
         refused=refused,
         refusal_reason="insufficient_evidence" if refused else None,
-        usage=_usage_from_state(state),
+        usage=_usage_from_state(state, store),
         trace_id=_trace_id(state),
         **extra,
     )

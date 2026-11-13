@@ -47,6 +47,7 @@ ignore = ["E501", "RUF001", "RUF002", "RUF003"]
 "pipelines/ingest.py" = ["B008"]
 "pipelines/universe.py" = ["B008"]
 "scripts/eval_gate.py" = ["B008"]
+"scripts/loadtest.py" = ["B008"]
 "scripts/compare_agents.py" = ["B008"]
 "scripts/tool_selection_eval.py" = ["B008"]
 

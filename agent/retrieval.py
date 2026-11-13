@@ -59,6 +59,8 @@ class RetrievalMeta:
     fused_n: int = 0
     returned_n: int = 0
     rerank_used: bool = False
+    embedding_tokens: int = 0
+    rerank_tokens: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -196,6 +198,7 @@ class Retriever:
                 try:
                     dense_hits = self._dense(query, ciks, as_of, limit=pool, form=form)
                     meta.dense_n = len(dense_hits)
+                    meta.embedding_tokens = max(1, len(query) // 4)
                 except Exception as exc:  # provider/network/schema — never kill the run
                     meta.degraded.append(f"dense_failed:{type(exc).__name__}")
 
@@ -305,6 +308,7 @@ class Retriever:
         # that 20 -> 8 selection drops the required section for ~13% of F2
         # questions. Rerank should change order, not recall.
         pool = hits[:k]
+        meta.rerank_tokens = max(1, (len(query) + sum(len(hit.text[:1200]) for hit in pool)) // 4)
         try:
             ranked = self._reranker.rerank(
                 query, [hit.text[:1200] for hit in pool], top_n=min(k, len(pool))

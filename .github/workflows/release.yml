@@ -62,6 +62,19 @@ jobs:
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
 
+      # The server cannot pull from GHCR fast enough; a plain artifact is the
+      # reliable fallback. It is also the rollback kit if the registry is down.
+      - name: Export image artifact (offline deploy)
+        run: |
+          docker save fintrace:${{ github.sha }} | gzip -1 > /tmp/fintrace-image.tar.gz
+          ls -lh /tmp/fintrace-image.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fintrace-image-amd64
+          path: /tmp/fintrace-image.tar.gz
+          retention-days: 7
+
   deploy:
     needs: build
     runs-on: ubuntu-latest

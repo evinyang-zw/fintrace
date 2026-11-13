@@ -237,3 +237,28 @@ def _main() -> None:
 
 if __name__ == "__main__":
     _main()
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalPricing:
+    embedding_per_mtok: float
+    rerank_per_mtok: float
+
+
+def load_retrieval_pricing(path: Path = DEFAULT_PRICING_PATH) -> RetrievalPricing:
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    section = raw.get("retrieval") or {}
+    return RetrievalPricing(
+        embedding_per_mtok=float(section.get("embedding_per_mtok", 0.0)),
+        rerank_per_mtok=float(section.get("rerank_per_mtok", 0.0)),
+    )
+
+
+def retrieval_cost_usd(
+    embedding_tokens: int, rerank_tokens: int, pricing: RetrievalPricing | None = None
+) -> float:
+    """Embedding tokens (query only) + rerank tokens, priced per million."""
+    price = pricing or load_retrieval_pricing()
+    return (
+        embedding_tokens * price.embedding_per_mtok + rerank_tokens * price.rerank_per_mtok
+    ) / TOKENS_PER_MTOK
