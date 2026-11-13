@@ -16,6 +16,13 @@ COPY . .
 RUN uv sync --frozen --no-dev
 
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS runtime
+
+# The base image ships Debian packages that regularly have fixable HIGH/CRITICAL
+# CVEs; apply security updates at build time so the scan gate means something.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --gid 10001 fintrace \
     && useradd --uid 10001 --gid fintrace --create-home fintrace
 WORKDIR /app
