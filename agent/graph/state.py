@@ -28,6 +28,8 @@ class GraphState(TypedDict, total=False):
     handles: list[dict[str, Any]]
     facts: list[dict[str, Any]]
     search_calls: list[dict[str, Any]]
+    embedding_tokens: int
+    rerank_tokens: int
     usage: dict[str, Any]
     draft: dict[str, Any] | None
     verification: dict[str, Any] | None
@@ -62,6 +64,8 @@ def initial_state(question: Question, *, messages: list[dict[str, str]]) -> Grap
         handles=[],
         facts=[],
         search_calls=[],
+        embedding_tokens=0,
+        rerank_tokens=0,
         usage=empty_usage(),
         draft=None,
         verification=None,
@@ -134,6 +138,8 @@ def store_from_state(state: GraphState) -> EvidenceStore:
         if fact.name != record["name"]:
             raise ValueError(f"fact order mismatch: {fact.name} != {record['name']}")
     store.search_calls.extend(state.get("search_calls", []))
+    store.embedding_tokens = int(state.get("embedding_tokens", 0))
+    store.rerank_tokens = int(state.get("rerank_tokens", 0))
     return store
 
 
@@ -142,4 +148,6 @@ def state_evidence(store: EvidenceStore) -> dict[str, Any]:
         "handles": [handle_record(h) for h in store.handles.values()],
         "facts": [fact_record(f) for f in store.facts.values()],
         "search_calls": list(store.search_calls),
+        "embedding_tokens": store.embedding_tokens,
+        "rerank_tokens": store.rerank_tokens,
     }
