@@ -129,6 +129,20 @@ W3 的重点因此是语义判官 + 混合检索，而不是继续刷总分。�
 `.github/workflows/ci.yml`：ruff → mypy → pytest（带 pgvector service）→ eval smoke。
 冷启动 32 秒，全绿。
 
+## 证据索引（看什么、在哪看）
+
+| 想看什么 | 去哪 |
+|---|---|
+| 评测结论（简历里的「评测报告」） | [`docs/evaluation-report.md`](docs/evaluation-report.md) |
+| 各阶段过程与失败分析 | [`docs/w4-report.md`](docs/w4-report.md) · [`docs/w3-report.md`](docs/w3-report.md) · [`docs/w2-report.md`](docs/w2-report.md) · [`docs/w1-report.md`](docs/w1-report.md) |
+| 指标口径与边界 | [`docs/metrics.md`](docs/metrics.md) |
+| 一次原始运行 | [`docs/evidence/latest-run.md`](docs/evidence/latest-run.md) |
+| 人工标注（60 + 30 条盲标） | [`docs/evidence/annotations/`](docs/evidence/annotations/) |
+| 架构决策 | [`docs/adr/`](docs/adr/) |
+
+**不在 Git 里**：`data/`（572MB 原始 filing 与 trace）、`reports/`（本地运行产物）。
+复现命令见评测报告 §6；`make publish-report` 会把最新一次运行快照进 `docs/evidence/`。
+
 ## 快速开始
 
 ```bash

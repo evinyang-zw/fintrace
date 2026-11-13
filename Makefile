@@ -106,4 +106,7 @@ check: lint type test ## 提交前全量检查
 pricing: ## 校验单价表（峰谷/缓存规则 + served model 对齐）
 	$(UV) run python -m agent.pricing
 
-.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask graph-ask resume compare compare-agents trace test lint fmt type check pricing embed embed-smoke rerank-smoke ablate annotation kappa hedge-bench citation-annotation citation-kappa
+publish-report: ## 刷新评测报告 provenance / 快照（ARGS="--report ... --snapshot ..."）
+	$(UV) run python scripts/publish_report.py $(ARGS)
+
+.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask graph-ask resume compare compare-agents trace test lint fmt type check pricing publish-report embed embed-smoke rerank-smoke ablate annotation kappa hedge-bench citation-annotation citation-kappa
