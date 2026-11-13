@@ -36,6 +36,10 @@ class ApiConfig:
     daily_budget_usd: float = 5.0
     run_timeout_s: float = 120.0
     review_mode: bool = True
+    trust_proxy: bool = False
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_host: str = "https://cloud.langfuse.com"
 
     @classmethod
     def from_env(cls) -> ApiConfig:
@@ -67,4 +71,8 @@ class ApiConfig:
             daily_budget_usd=number("API_DAILY_BUDGET_USD", 5.0),
             run_timeout_s=number("API_RUN_TIMEOUT_S", 120.0),
             review_mode=pick("API_REVIEW_MODE", "1") == "1",
+            trust_proxy=pick("TRUST_PROXY", "0") == "1",
+            langfuse_public_key=pick("LANGFUSE_PUBLIC_KEY"),
+            langfuse_secret_key=pick("LANGFUSE_SECRET_KEY"),
+            langfuse_host=pick("LANGFUSE_HOST", "https://cloud.langfuse.com"),
         )

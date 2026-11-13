@@ -34,6 +34,7 @@ class WorkerPool:
         *,
         workers: int = 6,
         queue_size: int = 50,
+        tracer: Any | None = None,
     ) -> None:
         self._store = store
         self._bus = bus
@@ -43,6 +44,7 @@ class WorkerPool:
         self._workers = workers
         self._tasks: list[asyncio.Task[None]] = []
         self._closing = asyncio.Event()
+        self._tracer = tracer
 
     @property
     def review_agent(self) -> _Agent:
@@ -88,6 +90,28 @@ class WorkerPool:
             finally:
                 self._queue.task_done()
 
+    def _trace(
+        self,
+        run_id: str,
+        question_or_answer: Any,
+        answer: dict[str, Any] | None,
+        usage: dict[str, Any] | None,
+        status: str,
+        error: str | None,
+    ) -> None:
+        if self._tracer is None:
+            return
+        question = getattr(question_or_answer, "question", "") or ""
+        self._tracer.record(
+            run_id=run_id,
+            question=str(question),
+            answer=answer,
+            usage=usage,
+            status=status,
+            latency_ms=int((usage or {}).get("latency_ms") or 0),
+            error=error,
+        )
+
     async def _process(self, run_id: str) -> None:
         row = await self._store.get(_uuid(run_id))
         if row is None or row["status"] != "queued":
@@ -114,6 +138,7 @@ class WorkerPool:
             answer = outcome.get("answer")
             if answer is None:
                 await self._store.fail(_uuid(run_id), "review run produced no answer")
+                self._trace(run_id, question, None, None, "failed", "no answer")
                 self._bus.publish(run_id, {"type": "failed", "error": "no answer"})
                 return
             await self._finish(run_id, answer)
@@ -127,7 +152,9 @@ class WorkerPool:
 
     async def _finish(self, run_id: str, answer: Answer) -> None:
         payload = answer.model_dump(mode="json")
-        await self._store.finish(_uuid(run_id), payload, answer.usage.model_dump(mode="json"))
+        usage = answer.usage.model_dump(mode="json")
+        await self._store.finish(_uuid(run_id), payload, usage)
+        self._trace(run_id, answer, payload, usage, "done", None)
         self._bus.publish(
             run_id,
             {

@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field, field_validator
 from api.config import ApiConfig
 from api.db import RunStore
 from api.events import EventBus
+from api.observability import RunTracer
 from api.worker import WorkerPool
 
 log = logging.getLogger("fintrace.api")
@@ -82,10 +83,13 @@ class RateLimiter:
         window.append(now)
 
 
-def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+def _client_ip(request: Request, trust_proxy: bool) -> str:
+    # Trusting X-Forwarded-For by default lets anyone forge an IP and walk past
+    # the rate limit. Only read it when we are actually behind a proxy.
+    if trust_proxy:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
 
@@ -142,6 +146,7 @@ def create_app(
             agents.append(review_agent)
 
         bus = EventBus()
+        tracer = RunTracer(config)
         pool = WorkerPool(
             store,
             bus,
@@ -149,6 +154,7 @@ def create_app(
             review_agent,
             workers=config.workers,
             queue_size=config.queue_size,
+            tracer=tracer,
         )
         await pool.start()
 
@@ -156,6 +162,7 @@ def create_app(
         app.state.store = store
         app.state.bus = bus
         app.state.pool = pool
+        app.state.tracer = tracer
         app.state.tickets = {}
         app.state.limiter = RateLimiter()
         try:
@@ -166,6 +173,7 @@ def create_app(
                 close = getattr(item, "aclose", None)
                 if close is not None:
                     await close()
+            tracer.flush()
             await store.close()
 
     app = FastAPI(title="FinTrace API", version="0.5.0", lifespan=lifespan)
@@ -194,7 +202,7 @@ def create_app(
     @app.post("/api/ask", status_code=202)
     async def ask(body: AskRequest, request: Request, kind: str = Depends(auth)) -> dict[str, Any]:
         state = request.app.state
-        ip = _client_ip(request)
+        ip = _client_ip(request, config.trust_proxy)
         state.limiter.check(ip, kind, config.per_ip_per_minute)
 
         if await state.store.today_spend() >= config.daily_budget_usd:
