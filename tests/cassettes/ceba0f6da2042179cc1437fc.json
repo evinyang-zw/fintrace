@@ -17,16 +17,16 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"先查 XBRL 结构化数据中的营业收入，财年 FY2023，截止日 2024-06-30。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"AURORA\", \"tag_query\": \"revenue\", \"as_of\": \"2024-06-30\"}}",
+    "text": "{\"thought\": \"先查 XBRL 结构化数据中的营业收入，财年 FY2023，as_of 2024-06-30。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"AURORA\", \"tag_query\": \"revenue\", \"as_of\": \"2024-06-30\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1550,
     "tokens_cached": 1408,
     "tokens_out": 76,
     "cost_usd": 0.00014224799999999998,
     "peak": true,
-    "latency_ms": 684,
+    "latency_ms": 1595,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T06:56:02+00:00",
+    "created_at": "2026-11-13T07:24:03+00:00",
     "hedged": false,
     "hedge_won": false
   }

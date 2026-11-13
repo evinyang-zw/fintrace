@@ -36,13 +36,13 @@
     "text": "{\"thought\": \"XBRL 对该公司返回空，按规则改用正文检索。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"consolidated total revenue fiscal 2024\", \"tickers\": [\"MERIDIAN\"], \"as_of\": \"2025-06-30\", \"form\": \"10-K\", \"k\": 8}}",
     "model": "deepseek-flash",
     "tokens_in": 1797,
-    "tokens_cached": 1536,
+    "tokens_cached": 1663,
     "tokens_out": 80,
-    "cost_usd": 0.000183516,
+    "cost_usd": 0.000146178,
     "peak": true,
-    "latency_ms": 845,
+    "latency_ms": 1093,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T06:56:05+00:00",
+    "created_at": "2026-11-13T07:21:31+00:00",
     "hedged": false,
     "hedge_won": false
   }

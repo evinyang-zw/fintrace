@@ -25,16 +25,16 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"XBRL 无数据，改用正文检索子公司 Meridian Logistics LLC 的营收披露。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"Meridian Logistics LLC revenue FY2024\", \"tickers\": [\"MERIDIAN\"], \"as_of\": \"2025-06-30\", \"k\": 8}}",
+    "text": "{\"thought\": \"XBRL 无数据，改用正文检索子公司 Meridian Logistics LLC 的营收披露。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"Meridian Logistics LLC revenue fiscal 2024\", \"tickers\": [\"MERIDIAN\"], \"as_of\": \"2025-06-30\", \"k\": 8}}",
     "model": "deepseek-flash",
     "tokens_in": 1685,
     "tokens_cached": 1536,
-    "tokens_out": 77,
-    "cost_usd": 0.00014631599999999999,
+    "tokens_out": 78,
+    "cost_usd": 0.000147516,
     "peak": true,
-    "latency_ms": 921,
+    "latency_ms": 1106,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T06:53:45+00:00",
+    "created_at": "2026-11-13T07:24:07+00:00",
     "hedged": false,
     "hedge_won": false
   }

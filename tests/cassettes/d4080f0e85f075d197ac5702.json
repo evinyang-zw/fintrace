@@ -17,16 +17,16 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"先查 XBRL 结构化数据中的毛利，财年 FY2024。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"HELIOS\", \"tag_query\": \"gross profit\", \"as_of\": \"2025-06-30\"}}",
+    "text": "{\"thought\": \"先查 XBRL 结构化数据中的毛利。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"HELIOS\", \"tag_query\": \"gross profit\", \"as_of\": \"2025-06-30\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1540,
     "tokens_cached": 1406,
-    "tokens_out": 67,
-    "cost_usd": 0.000129036,
+    "tokens_out": 61,
+    "cost_usd": 0.000121836,
     "peak": true,
-    "latency_ms": 694,
+    "latency_ms": 781,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T06:55:55+00:00",
+    "created_at": "2026-11-13T07:23:58+00:00",
     "hedged": false,
     "hedge_won": false
   }

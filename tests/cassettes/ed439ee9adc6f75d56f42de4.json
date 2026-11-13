@@ -17,16 +17,16 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"先查 XBRL 结构化数据中的营业收入（FY2024）。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"NORTHWIND\", \"tag_query\": \"revenue\", \"as_of\": \"2025-06-30\"}}",
+    "text": "{\"thought\": \"先查 XBRL 结构化数据中的营业收入，财年 FY2024。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"NORTHWIND\", \"tag_query\": \"revenue\", \"as_of\": \"2025-06-30\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1536,
     "tokens_cached": 1280,
-    "tokens_out": 65,
-    "cost_usd": 0.00016248,
+    "tokens_out": 67,
+    "cost_usd": 0.00016488,
     "peak": true,
-    "latency_ms": 768,
+    "latency_ms": 929,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T06:56:06+00:00",
+    "created_at": "2026-11-13T07:24:07+00:00",
     "hedged": false,
     "hedge_won": false
   }

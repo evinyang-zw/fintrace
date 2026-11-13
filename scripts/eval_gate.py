@@ -35,6 +35,7 @@ def _run_eval(dataset: Path, out: Path) -> Path:
         **os.environ,
         "FINTRACE_LLM_MODE": "replay",
         "RETRIEVAL_TIER": "bm25",
+        "FINTRACE_VERIFY_SEMANTIC": "0",
         "LLM_API_KEY": os.environ.get("LLM_API_KEY", "replay-only"),
     }
     out.mkdir(parents=True, exist_ok=True)
@@ -47,7 +48,7 @@ def _run_eval(dataset: Path, out: Path) -> Path:
         "--agent",
         "graph",
         "--judge",
-        "llm",
+        "deterministic",
         "--out",
         str(out),
     ]
@@ -99,7 +100,7 @@ def render_markdown(
         "### FinTrace eval gate",
         "",
         f"- 数据集：`{cur.get('meta', {}).get('dataset', DEFAULT_DATASET)}`（n={cm.get('n')}）",
-        f"- 判官：`{cur.get('judge')}` · 模式：replay（无网络、无费用）",
+        f"- 判官：`{cur.get('judge')}` · 语义校验：关闭 · 模式：replay（无网络、无费用）",
         "",
         "| 指标 | 基线 | 本次 | Δ |",
         "|---|---|---|---|",
@@ -144,6 +145,8 @@ def main(
 
     blocks: list[str] = []
     warns: list[str] = []
+    if int(cm.get("n") or 0) != int(bm.get("n") or 0):
+        blocks.append(f"replay incomplete: n={cm.get('n')} vs baseline {bm.get('n')}")
     if cm.get("citation_support", 0) <= bm.get("citation_support", 0) - CITATION_DROP_BLOCK:
         blocks.append(
             f"引用支撑率 {_pct(bm.get('citation_support', 0))} → {_pct(cm.get('citation_support', 0))}"

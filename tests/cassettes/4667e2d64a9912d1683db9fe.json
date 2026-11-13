@@ -41,16 +41,16 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"去掉年份和 form 限制，用更宽的关键词再检索。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"gross profit\", \"tickers\": [\"HELIOS\"], \"as_of\": \"2025-06-30\", \"k\": 8}}",
+    "text": "{\"thought\": \"检索无结果，去掉年份和 form 限制再试更宽的关键词。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"gross profit\", \"tickers\": [\"HELIOS\"], \"as_of\": \"2025-06-30\", \"k\": 8}}",
     "model": "deepseek-flash",
     "tokens_in": 1995,
     "tokens_cached": 1792,
-    "tokens_out": 68,
-    "cost_usd": 0.00015325200000000002,
+    "tokens_out": 70,
+    "cost_usd": 0.000155652,
     "peak": true,
-    "latency_ms": 1192,
+    "latency_ms": 733,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T06:53:34+00:00",
+    "created_at": "2026-11-13T07:24:01+00:00",
     "hedged": false,
     "hedge_won": false
   }

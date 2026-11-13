@@ -32,10 +32,21 @@ def _max_steps() -> int:
     return int(os.environ.get("AGENT_MAX_STEPS", "7"))
 
 
+def _graph_config() -> GraphConfig:
+    # The CI gate turns semantic verification off so replay stays deterministic:
+    # the LLM citation checker is a second model call whose prompt embeds a DB
+    # section, and any drift there turns into a repair path that was never
+    # recorded. Full (non-CI) evals keep it on.
+    return GraphConfig(
+        max_steps=_max_steps(),
+        verify_semantic=os.environ.get("FINTRACE_VERIFY_SEMANTIC", "1") == "1",
+    )
+
+
 AGENTS: dict[str, Callable[[], Agent]] = {
     "null": NullAgent,
     "react": lambda: ReactAgent(Settings.from_env(), config=ReactConfig(max_steps=_max_steps())),
-    "graph": lambda: GraphAgent(Settings.from_env(), config=GraphConfig(max_steps=_max_steps())),
+    "graph": lambda: GraphAgent(Settings.from_env(), config=_graph_config()),
 }
 JUDGES: dict[str, Callable[[], Judge]] = {
     "rule": RuleJudge,

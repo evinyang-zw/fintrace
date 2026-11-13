@@ -17,16 +17,16 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"先查 XBRL 中 Northwind Analytics 的营业收入数据，确认 FY2024 与 FY2023 的数值。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"NORTHWIND\", \"tag_query\": \"revenue\", \"as_of\": \"2025-06-30\"}}",
+    "text": "{\"thought\": \"先查 XBRL 中 FY2024 的营业收入数据，判断是否有结构化数据。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"NORTHWIND\", \"tag_query\": \"revenue\", \"as_of\": \"2025-06-30\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1541,
     "tokens_cached": 1407,
-    "tokens_out": 78,
-    "cost_usd": 0.000142242,
+    "tokens_out": 70,
+    "cost_usd": 0.000132642,
     "peak": true,
-    "latency_ms": 1199,
+    "latency_ms": 870,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T06:56:09+00:00",
+    "created_at": "2026-11-13T07:24:11+00:00",
     "hedged": false,
     "hedge_won": false
   }

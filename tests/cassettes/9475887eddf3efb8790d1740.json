@@ -1,0 +1,33 @@
+{
+  "key": "9475887eddf3efb8790d1740",
+  "request": {
+    "model": "deepseek-flash",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是一个严格的引用校验器。逐条判断：句子是否被它引用的证据支持。\n\n标签只有三种：\n- supported：证据中有一句直接支持句子的核心主张\n- partial：只支持一部分，或需要额外推断才能成立\n- unsupported：证据与主张无关、只沾边，或与主张矛盾\n\n注意：证据可能是一大段文字（甚至整节）。只要其中有一处直接支持该主张，就记\nsupported；不要因为段落里还有别的内容而扣分。反之，如果整段都没提到主张里的\n关键数字或事实，记 unsupported。\n\n只输出 JSON：{\"results\": [{\"i\": 1, \"label\": \"supported\", \"why\": \"<=20字\"}]}\ni 必须与输入编号一致，覆盖全部条目，不要遗漏。\n"
+      },
+      {
+        "role": "user",
+        "content": "[\n  {\n    \"i\": 1,\n    \"claim\": \"Meridian Logistics LLC 在 FY2024（截至 2024-12-31 财年）的营收为 3.00 亿美元（即 300 百万美元）[K2]。\",\n    \"spans\": [\n      \"Meridian Holdings 10-K FY2024\\nMERIDIAN HOLDINGS, INC.\\nFORM 10-K — FISCAL YEAR ENDED DECEMBER 31, 2024\\nItem 1. Business\\nMeridian Holdings, Inc. is a holding company. Its principal operating\\nsubsidiary is Meridian Logistics LLC, which is the group's principal\\nrevenue-generating entity; the parent itself has no customers.\\nItem 8. Financial Statements and Supplementary Data\\nConsolidated Statements of Operations (in millions)\\nConsolidated total revenue1,200\\nLess: intercompany eliminations0\\nMeridian Logistics LLC revenue (subsidiary)300\\nHolding-company revenue (parent only)900\"\n    ]\n  },\n  {\n    \"i\": 2,\n    \"claim\": \"该数字取自 10-K 正文的合并利润表附注行“Meridian Logistics LLC revenue (subsidiary) 300”，单位为百万美元；因 XBRL 结构化数据对该公司返回为空，此数据取自正文，未结构化 [K2]。\",\n    \"spans\": [\n      \"Meridian Holdings 10-K FY2024\\nMERIDIAN HOLDINGS, INC.\\nFORM 10-K — FISCAL YEAR ENDED DECEMBER 31, 2024\\nItem 1. Business\\nMeridian Holdings, Inc. is a holding company. Its principal operating\\nsubsidiary is Meridian Logistics LLC, which is the group's principal\\nrevenue-generating entity; the parent itself has no customers.\\nItem 8. Financial Statements and Supplementary Data\\nConsolidated Statements of Operations (in millions)\\nConsolidated total revenue1,200\\nLess: intercompany eliminations0\\nMeridian Logistics LLC revenue (subsidiary)300\\nHolding-company revenue (parent only)900\"\n    ]\n  },\n  {\n    \"i\": 3,\n    \"claim\": \"需注意这是子公司口径，与母公司口径的 900 百万美元及合并总营收 1,200 百万美元相区分 [K2]。\",\n    \"spans\": [\n      \"Meridian Holdings 10-K FY2024\\nMERIDIAN HOLDINGS, INC.\\nFORM 10-K — FISCAL YEAR ENDED DECEMBER 31, 2024\\nItem 1. Business\\nMeridian Holdings, Inc. is a holding company. Its principal operating\\nsubsidiary is Meridian Logistics LLC, which is the group's principal\\nrevenue-generating entity; the parent itself has no customers.\\nItem 8. Financial Statements and Supplementary Data\\nConsolidated Statements of Operations (in millions)\\nConsolidated total revenue1,200\\nLess: intercompany eliminations0\\nMeridian Logistics LLC revenue (subsidiary)300\\nHolding-company revenue (parent only)900\"\n    ]\n  }\n]"
+      }
+    ],
+    "max_tokens": 800,
+    "json_mode": true,
+    "temperature": null
+  },
+  "result": {
+    "text": "{\"results\": [{\"i\": 1, \"label\": \"supported\", \"why\": \"证据明确列出子公司营收300百万美元\"}, {\"i\": 2, \"label\": \"partial\", \"why\": \"支持取自正文，但未提XBRL为空\"}, {\"i\": 3, \"label\": \"supported\", \"why\": \"证据区分300、900、1200三个口径\"}]}",
+    "model": "deepseek-flash",
+    "tokens_in": 876,
+    "tokens_cached": 640,
+    "tokens_out": 85,
+    "cost_usd": 0.00017664,
+    "peak": true,
+    "latency_ms": 1118,
+    "finish_reason": "stop",
+    "created_at": "2026-11-13T07:21:36+00:00",
+    "hedged": false,
+    "hedge_won": false
+  }
+}

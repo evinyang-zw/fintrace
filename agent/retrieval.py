@@ -87,7 +87,7 @@ _BM25_SQL = """
       AND f.cik = ANY(%(ciks)s)
       AND (%(form)s::text IS NULL OR f.form = %(form)s)
       AND to_tsvector('english', ch.text) @@ websearch_to_tsquery('english', %(q)s)
-    ORDER BY score DESC, ch.filed_at DESC
+    ORDER BY score DESC, ch.filed_at DESC, ch.accession, ch.item_code, ch.char_start
     LIMIT %(limit)s
 """
 
@@ -103,7 +103,7 @@ _DENSE_SQL = """
       AND ch.filed_at <= %(as_of)s
       AND f.cik = ANY(%(ciks)s)
       AND (%(form)s::text IS NULL OR f.form = %(form)s)
-    ORDER BY v.vec <=> %(vec)s::vector
+    ORDER BY v.vec <=> %(vec)s::vector, ch.accession, ch.item_code, ch.char_start
     LIMIT %(limit)s
 """
 
@@ -273,7 +273,10 @@ class Retriever:
             for rank, hit in enumerate(ranked, start=1):
                 scores[hit.key] = scores.get(hit.key, 0.0) + 1.0 / (RRF_K + rank)
                 by_key.setdefault(hit.key, hit)
-        ordered = sorted(scores.items(), key=lambda pair: pair[1], reverse=True)
+        ordered = sorted(
+            scores.items(),
+            key=lambda pair: (-pair[1], pair[0][0], pair[0][1], pair[0][2]),
+        )
         fused: list[Hit] = []
         for key, score in ordered:
             base = by_key[key]

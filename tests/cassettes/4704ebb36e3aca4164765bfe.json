@@ -25,16 +25,16 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"XBRL 无匹配，换更短的关键词再试一次。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"MERIDIAN\", \"tag_query\": \"revenue\", \"as_of\": \"2025-06-30\"}}",
+    "text": "{\"thought\": \"XBRL 无匹配，换更短的关键词 revenue 再试一次。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"MERIDIAN\", \"tag_query\": \"revenue\", \"as_of\": \"2025-06-30\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1674,
     "tokens_cached": 1536,
-    "tokens_out": 64,
-    "cost_usd": 0.000127416,
+    "tokens_out": 66,
+    "cost_usd": 0.000129816,
     "peak": true,
-    "latency_ms": 738,
+    "latency_ms": 1010,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T06:56:05+00:00",
+    "created_at": "2026-11-13T07:24:07+00:00",
     "hedged": false,
     "hedge_won": false
   }

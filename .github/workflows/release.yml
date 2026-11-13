@@ -40,7 +40,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Scan image (block HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: fintrace:${{ github.sha }}
           format: table
@@ -49,7 +49,7 @@ jobs:
           severity: HIGH,CRITICAL
 
       - name: SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@v0.24.3
         with:
           image: fintrace:${{ github.sha }}
           format: spdx-json

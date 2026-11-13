@@ -36,13 +36,13 @@
     "text": "{\"thought\": \"XBRL 对该公司返回空，按规则改用正文检索。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"gross profit fiscal 2024\", \"tickers\": [\"HELIOS\"], \"as_of\": \"2025-06-30\", \"form\": \"10-K\", \"k\": 8}}",
     "model": "deepseek-flash",
     "tokens_in": 1795,
-    "tokens_cached": 1536,
+    "tokens_cached": 1661,
     "tokens_out": 78,
-    "cost_usd": 0.000180516,
+    "cost_usd": 0.00014376599999999998,
     "peak": true,
-    "latency_ms": 1471,
+    "latency_ms": 970,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T06:53:33+00:00",
+    "created_at": "2026-11-13T07:24:00+00:00",
     "hedged": false,
     "hedge_won": false
   }
