@@ -64,7 +64,8 @@
 
 每次运行一个 span：`input=question`、`output=answer`、`metadata={cost, retrieval_cost,
 model, tool_calls, latency_ms, status, error}`。
-本地实测写入成功（observation `fintrace.run`），失败时只 warning，不影响用户请求。
+本地与线上都已实测：部署 `014fdc1` 后的一次真实提问在 2026-11-13 08:39 UTC 产生
+`fintrace.run` observation。写入失败只 warning，不影响用户请求。
 
 **限制**：只有 run 级 span，没有逐次 LLM generation；逐步骤信息仍在
 `data/traces/*.json`。要做 per-call 成本归因，下一步在 `agent/llm.py` 里加 hook。
