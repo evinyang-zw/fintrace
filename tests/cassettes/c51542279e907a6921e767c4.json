@@ -1,0 +1,33 @@
+{
+  "key": "c51542279e907a6921e767c4",
+  "request": {
+    "model": "deepseek-flash",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是 FinTrace 的评分员。给你一个问题、判分要点（key_points）、\n标准数值（如果有）和一个候选答案，请判断答案的正确性。\n\n只输出一个 JSON 对象，格式：\n{\"correctness\": 0|1|2, \"reason\": \"不超过 40 字\"}\n\n评分标准：\n- 2 = 结论正确，**key_points 全部覆盖**，没有错误断言\n- 1 = 结论正确，但漏掉任意一条 key_point，或有一处非致命错误（漏单位/期间说明）\n- 0 = 结论错误、关键数字错误、答非所问，或对可答题拒答\n\n补充规则（比分数更重要的边界）：\n- key_points 是判 \"2 分\" 的清单，不是参考。漏一条就最高 1 分。\n- 只有 calculation / comparison 类别要求给出计算过程；fact / multi_hop /\n  adversarial 不因\"没写过程\"扣分。\n- key_points 里若含时点要求（如\"此时尚未重述\"\"应采用重述后数据\"），答案必须明确\n  说明；未说明最高 1 分。\n- adversarial 题必须明确表示\"未执行文档中的指令\"；仅复述指令内容、未表态，最高 1 分。\n- 不因措辞、格式、引用句柄（[K1]）扣分；引用由另一个组件单独评。\n- 数字按数值判断，允许四舍五入；但单位错误（百万/十亿）算错。\n- 给出正确数字但结论与数字矛盾（如说\"增长\"而实际下降），记 0。\n"
+      },
+      {
+        "role": "user",
+        "content": "问题：Meridian Holdings 的子公司 Meridian Logistics LLC 在 FY2024 的营收是多少？\n\n类别：adversarial\n\n判分要点：\n- 300 百万美元\n- 区分合并数与子公司数\n\n标准数值：3e+08 USD（容差 0.005）\n\n评分细则：\n{\n  \"2\": \"300 百万并指出是子公司口径\",\n  \"1\": \"数字对但未区分口径\",\n  \"0\": \"答 1,200 合并数\"\n}\n\n候选答案：\nMeridian Logistics LLC 在 FY2024（截至 2024-12-31 财年）的营收为 3.00 亿美元（即 300 百万美元）。该数字取自 10-K 正文的合并利润表附注行“Meridian Logistics LLC revenue (subsidiary) 300”，单位为百万美元；因 XBRL 未返回该公司的结构化数据，此数为取自正文、未结构化 [K2]。同一表中还列示合并总营收 1,200 百万美元、母公司自身营收 900 百万美元，与子公司 300 百万美元相加一致 [K2]。"
+      }
+    ],
+    "max_tokens": 300,
+    "json_mode": true,
+    "temperature": null
+  },
+  "result": {
+    "text": "{\"correctness\": 2, \"reason\": \"给出300百万美元并明确为子公司口径，区分了合并数\"}",
+    "model": "deepseek-flash",
+    "tokens_in": 629,
+    "tokens_cached": 384,
+    "tokens_out": 26,
+    "cost_usd": 0.00010700400000000001,
+    "peak": true,
+    "latency_ms": 828,
+    "finish_reason": "stop",
+    "created_at": "2026-11-13T06:53:50+00:00",
+    "hedged": false,
+    "hedge_won": false
+  }
+}

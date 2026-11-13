@@ -1,0 +1,66 @@
+name: fintrace-prod
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fintrace
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: fintrace
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fintrace -d fintrace"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mcp:
+    image: ${IMAGE:?set IMAGE to the GHCR tag}
+    restart: unless-stopped
+    command: ["python", "-m", "mcp_server", "--transport", "http", "--port", "8001"]
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql://fintrace:${POSTGRES_PASSWORD}@db:5432/fintrace
+      PGOPTIONS: -c default_transaction_read_only=on
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  app:
+    image: ${IMAGE:?set IMAGE to the GHCR tag}
+    restart: unless-stopped
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql://fintrace:${POSTGRES_PASSWORD}@db:5432/fintrace
+      MCP_URL: http://mcp:8001/mcp
+      FINTRACE_TOOL_BACKEND: mcp
+    ports:
+      - "${APP_PORT:-80}:8000"
+    volumes:
+      - traces:/app/data/traces
+    depends_on:
+      db:
+        condition: service_healthy
+      mcp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)"]
+      interval: 20s
+      timeout: 8s
+      retries: 10
+      start_period: 40s
+
+volumes:
+  pgdata:
+  traces:

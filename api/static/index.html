@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FinTrace · 可审计的财报研究代理</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header>
+  <h1>FinTrace</h1>
+  <nav>
+    <a href="/dashboard">成本与延迟</a>
+    <a href="https://github.com/evinyang-zw/fintrace" target="_blank" rel="noreferrer">代码</a>
+  </nav>
+</header>
+
+<main>
+  <section class="card">
+    <label for="token">访问令牌（只存在浏览器本地）</label>
+    <input id="token" type="password" autocomplete="off" placeholder="Bearer token">
+
+    <div style="margin-top:14px">
+      <label for="question">问一个关于公开财报的问题</label>
+      <textarea id="question" placeholder="例：苹果 FY2024 的总净营收是多少？数据中心业务占比？"></textarea>
+    </div>
+
+    <div class="row">
+      <div class="grow">
+        <label for="universe">公司（逗号分隔）</label>
+        <input id="universe" type="text" value="AAPL">
+      </div>
+      <label class="muted" style="display:flex;gap:6px;align-items:center;margin:0 0 10px">
+        <input id="review" type="checkbox"> 人工复核
+      </label>
+      <button id="ask">提问</button>
+    </div>
+    <p id="hint" class="hint"></p>
+  </section>
+
+  <section id="progress" class="card" hidden>
+    <h3 style="margin:0 0 10px">执行中 <span id="run-id" class="muted"></span></h3>
+    <ol id="steps" class="steps"></ol>
+  </section>
+
+  <section id="result" class="card" hidden>
+    <div id="status-line" style="margin-bottom:12px"></div>
+    <div id="answer" class="answer"></div>
+    <div id="citations" class="citations"></div>
+    <div id="review-box" class="review-actions" hidden>
+      <button id="approve">通过</button>
+      <button id="edit" class="ghost">改写后通过</button>
+      <button id="reject" class="danger">拒绝</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  只做公开财报的信息整理，不构成投资建议。数字来自 XBRL，叙述来自 10-K/10-Q。
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

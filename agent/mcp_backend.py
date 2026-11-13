@@ -1,24 +1,29 @@
-"""MCP client backend: talks to ``mcp_server`` over stdio.
+"""MCP client backend.
 
-Two constraints shape this file:
+Two transports, one contract:
 
-* the server is stateless and returns raw evidence; **this** client assigns
-  ``K#``/``F#`` handles, because a handle names a span within one agent run;
-* the MCP stdio client owns an anyio cancel scope, so it must be entered and
-  exited in the *same task*. The graph runs every node in a different task, so a
-  long-lived worker task owns the connection and calls are queued to it.
+* **stdio** (default) — the server is spawned as a child process. The MCP stdio
+  client owns an anyio cancel scope, so one worker task owns the connection and
+  serialises calls.
+* **HTTP** (``MCP_URL``) — the server is a separate container. Calls go through a
+  small pool of sessions so twenty concurrent runs do not queue behind one
+  connection.
+
+In both cases the server is stateless and returns raw evidence; **this** client
+assigns ``K#``/``F#`` handles, because a handle names a span within one run.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import re
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from mcp import Client
 from mcp.client.stdio import StdioServerParameters
@@ -52,7 +57,49 @@ def _remap(text: str, mapping: dict[str, str]) -> str:
     return _JSON_HANDLE.sub(quoted, _HANDLE.sub(bracket, text))
 
 
-class _Worker:
+def _payload_to_result(payload: dict[str, Any], store: EvidenceStore) -> BackendResult:
+    mapping: dict[str, str] = {}
+    for record in payload.get("handles", []):
+        handle = store.add(
+            accession=str(record["accession"]),
+            item_code=str(record["item_code"]),
+            char_start=int(record["char_start"]),
+            char_end=int(record["char_end"]),
+            quote=str(record["quote"]),
+            label=str(record["label"]),
+            filed_at=date.fromisoformat(str(record["filed_at"])),
+        )
+        mapping[str(record["name"])] = handle.name
+    for record in payload.get("facts", []):
+        fact = store.add_fact(
+            ticker=str(record["ticker"]),
+            tag=str(record["tag"]),
+            value=float(record["value"]),
+            unit=str(record["unit"]),
+            period_end=date.fromisoformat(str(record["period_end"])),
+            fiscal_period=(
+                str(record["fiscal_period"]) if record.get("fiscal_period") is not None else None
+            ),
+        )
+        mapping[str(record["name"])] = fact.name
+
+    observation = _remap(str(payload.get("observation", "")), mapping)
+    return BackendResult(bool(payload.get("ok")), payload.get("code"), observation)
+
+
+def _result_to_payload(result: CallToolResult) -> dict[str, Any] | None:
+    payload = result.structured_content
+    if payload is not None:
+        return dict(payload)
+    first = result.content[0] if result.content else None
+    text = getattr(first, "text", "{}")
+    try:
+        return dict(json.loads(text))
+    except json.JSONDecodeError:
+        return None
+
+
+class _StdioWorker:
     """Owns the stdio connection in one task and serialises tool calls."""
 
     def __init__(self, params: StdioServerParameters) -> None:
@@ -115,16 +162,60 @@ class _Worker:
         self._task = None
 
 
+class _HttpPool:
+    """A few persistent sessions; each call borrows one so calls run in parallel."""
+
+    def __init__(self, url: str, size: int = 6) -> None:
+        self._url = url
+        self._size = size
+        self._clients: list[Any] = []
+        self._free: asyncio.Queue[Any] = asyncio.Queue()
+
+    async def start(self) -> None:
+        if self._clients:
+            return
+        for _ in range(self._size):
+            client = Client(self._url)
+            await client.__aenter__()
+            self._clients.append(client)
+            self._free.put_nowait(client)
+
+    async def call(self, name: str, args: dict[str, Any]) -> CallToolResult:
+        client = await self._free.get()
+        try:
+            result = await client.call_tool(name, args)
+            return cast(CallToolResult, result)
+        finally:
+            self._free.put_nowait(client)
+
+    async def close(self) -> None:
+        for client in self._clients:
+            with contextlib.suppress(Exception):  # best effort shutdown
+                await client.__aexit__(None, None, None)
+        self._clients = []
+
+
 class MCPBackend:
     name = "mcp"
 
-    def __init__(self, *, timeout_s: float = 5.0) -> None:
+    def __init__(
+        self, *, url: str | None = None, timeout_s: float = 5.0, pool_size: int = 6
+    ) -> None:
+        self._url = url or os.environ.get("MCP_URL", "")
         self._timeout_s = timeout_s
-        self._worker: _Worker | None = None
+        self._pool_size = pool_size
+        self._stdio: _StdioWorker | None = None
+        self._http: _HttpPool | None = None
 
-    async def _ensure(self) -> _Worker:
-        if self._worker is not None:
-            return self._worker
+    async def _ensure(self) -> _StdioWorker | _HttpPool:
+        if self._url:
+            if self._http is None:
+                pool = _HttpPool(self._url, size=max(1, self._pool_size))
+                await pool.start()
+                self._http = pool
+            return self._http
+        if self._stdio is not None:
+            return self._stdio
         env = {
             **os.environ,
             "PYTHONPATH": str(_REPO_ROOT),
@@ -137,15 +228,17 @@ class MCPBackend:
             cwd=str(_REPO_ROOT),
             env=env,
         )
-        worker = _Worker(params)
+        worker = _StdioWorker(params)
         await worker.start()
-        self._worker = worker
+        self._stdio = worker
         return worker
 
     async def execute(self, store: EvidenceStore, name: str, args: dict[str, Any]) -> BackendResult:
-        worker = await self._ensure()
+        backend = await self._ensure()
         try:
-            result = await asyncio.wait_for(worker.call(name, args), timeout=self._timeout_s)
+            result: CallToolResult = await asyncio.wait_for(
+                backend.call(name, args), timeout=self._timeout_s
+            )
         except TimeoutError:
             return BackendResult(
                 False, "timeout", f"ERROR[timeout]: {name} exceeded {self._timeout_s}s"
@@ -168,45 +261,15 @@ class MCPBackend:
             )
             return BackendResult(False, code, f"ERROR[{code}]: {text}")
 
-        payload = result.structured_content
+        payload = _result_to_payload(result)
         if payload is None:
-            first = result.content[0] if result.content else None
-            text = getattr(first, "text", "{}")
-            try:
-                payload = json.loads(text)
-            except json.JSONDecodeError:
-                return BackendResult(False, "mcp_error", f"ERROR[mcp_error]: {text[:200]}")
-        mapping: dict[str, str] = {}
-        for record in payload.get("handles", []):
-            handle = store.add(
-                accession=str(record["accession"]),
-                item_code=str(record["item_code"]),
-                char_start=int(record["char_start"]),
-                char_end=int(record["char_end"]),
-                quote=str(record["quote"]),
-                label=str(record["label"]),
-                filed_at=date.fromisoformat(str(record["filed_at"])),
-            )
-            mapping[str(record["name"])] = handle.name
-        for record in payload.get("facts", []):
-            fact = store.add_fact(
-                ticker=str(record["ticker"]),
-                tag=str(record["tag"]),
-                value=float(record["value"]),
-                unit=str(record["unit"]),
-                period_end=date.fromisoformat(str(record["period_end"])),
-                fiscal_period=(
-                    str(record["fiscal_period"])
-                    if record.get("fiscal_period") is not None
-                    else None
-                ),
-            )
-            mapping[str(record["name"])] = fact.name
-
-        observation = _remap(str(payload.get("observation", "")), mapping)
-        return BackendResult(bool(payload.get("ok")), payload.get("code"), observation)
+            return BackendResult(False, "mcp_error", "ERROR[mcp_error]: unparseable tool result")
+        return _payload_to_result(payload, store)
 
     async def aclose(self) -> None:
-        if self._worker is not None:
-            await self._worker.close()
-            self._worker = None
+        if self._stdio is not None:
+            await self._stdio.close()
+            self._stdio = None
+        if self._http is not None:
+            await self._http.close()
+            self._http = None

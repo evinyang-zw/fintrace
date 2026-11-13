@@ -1,16 +1,19 @@
-"""FinTrace tools as an MCP server (W4).
+"""Run the FinTrace MCP tool server.
 
-The server is intentionally stateless: it returns raw evidence records, never
-``K1``/``F2`` handles. Handles belong to one agent run, so the client assigns
-them; a stateful server could not be cached, reused or tested in isolation.
+Two transports:
 
-It is also read-only at the connection level: the client launches it with
-``PGOPTIONS=-c default_transaction_read_only=on``, so even a bug in this file
-cannot write to the warehouse.
+* ``stdio`` (default) — local development, and what W4's tests use;
+* ``http`` — production: the API container and the tool container are separate
+  processes, so they need streamable HTTP on a port.
+
+The server stays stateless and read-only; handles are assigned by the client.
 """
 
 from __future__ import annotations
 
+import argparse
+import asyncio
+import json
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
@@ -103,10 +106,53 @@ async def compute(expression: str) -> dict[str, Any]:
     return _call("compute", {"expression": expression})
 
 
-def main() -> None:
-    import asyncio
+def _http_app() -> Any:
+    """Streamable HTTP app plus a plain health route for Docker/compose."""
+    import os
 
-    asyncio.run(server.run_stdio_async())
+    from mcp.server.transport_security import TransportSecuritySettings
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse
+
+    # The API container reaches this server as ``http://mcp:8001/mcp``; the MCP
+    # SDK's DNS-rebinding guard rejects unknown Host headers by default.
+    hosts = [
+        item.strip()
+        for item in os.environ.get(
+            "MCP_ALLOWED_HOSTS", "mcp:8001,localhost:8001,127.0.0.1:8001"
+        ).split(",")
+        if item.strip()
+    ]
+    security = TransportSecuritySettings(
+        allowed_hosts=hosts,
+        allowed_origins=[f"http://{host}" for host in hosts],
+    )
+    app = server.streamable_http_app(
+        streamable_http_path="/mcp", stateless_http=True, transport_security=security
+    )
+
+    async def health(_request: Request) -> JSONResponse:
+        return JSONResponse({"ok": True, "server": "fintrace-tools"})
+
+    app.add_route("/health", health, methods=["GET"])
+    return app
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="FinTrace MCP tool server")
+    parser.add_argument("--transport", choices=["stdio", "http"], default="stdio")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8001)
+    args = parser.parse_args()
+
+    if args.transport == "stdio":
+        asyncio.run(server.run_stdio_async())
+        return
+
+    import uvicorn
+
+    print(json.dumps({"transport": "http", "host": args.host, "port": args.port}))
+    uvicorn.run(_http_app(), host=args.host, port=args.port, workers=1, log_level="info")
 
 
 if __name__ == "__main__":

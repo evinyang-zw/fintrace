@@ -1,0 +1,33 @@
+{
+  "key": "e74c1daa71e273f27de09ca4",
+  "request": {
+    "model": "deepseek-flash",
+    "messages": [
+      {
+        "role": "system",
+        "content": "你是一个严格的引用校验器。逐条判断：句子是否被它引用的证据支持。\n\n标签只有三种：\n- supported：证据中有一句直接支持句子的核心主张\n- partial：只支持一部分，或需要额外推断才能成立\n- unsupported：证据与主张无关、只沾边，或与主张矛盾\n\n注意：证据可能是一大段文字（甚至整节）。只要其中有一处直接支持该主张，就记\nsupported；不要因为段落里还有别的内容而扣分。反之，如果整段都没提到主张里的\n关键数字或事实，记 unsupported。\n\n只输出 JSON：{\"results\": [{\"i\": 1, \"label\": \"supported\", \"why\": \"<=20字\"}]}\ni 必须与输入编号一致，覆盖全部条目，不要遗漏。\n"
+      },
+      {
+        "role": "user",
+        "content": "[\n  {\n    \"i\": 1,\n    \"claim\": \"该数字取自 10-K 正文的合并利润表附注行“Meridian Logistics LLC revenue (subsidiary) 300”，单位为百万美元；因 XBRL 未返回该公司的结构化数据，此数为取自正文、未结构化 [K2]。\",\n    \"spans\": [\n      \"Meridian Holdings 10-K FY2024\\nMERIDIAN HOLDINGS, INC.\\nFORM 10-K — FISCAL YEAR ENDED DECEMBER 31, 2024\\nItem 1. Business\\nMeridian Holdings, Inc. is a holding company. Its principal operating\\nsubsidiary is Meridian Logistics LLC, which is the group's principal\\nrevenue-generating entity; the parent itself has no customers.\\nItem 8. Financial Statements and Supplementary Data\\nConsolidated Statements of Operations (in millions)\\nConsolidated total revenue1,200\\nLess: intercompany eliminations0\\nMeridian Logistics LLC revenue (subsidiary)300\\nHolding-company revenue (parent only)900\"\n    ]\n  },\n  {\n    \"i\": 2,\n    \"claim\": \"同一表中还列示合并总营收 1,200 百万美元、母公司自身营收 900 百万美元，与子公司 300 百万美元相加一致 [K2]。\",\n    \"spans\": [\n      \"Meridian Holdings 10-K FY2024\\nMERIDIAN HOLDINGS, INC.\\nFORM 10-K — FISCAL YEAR ENDED DECEMBER 31, 2024\\nItem 1. Business\\nMeridian Holdings, Inc. is a holding company. Its principal operating\\nsubsidiary is Meridian Logistics LLC, which is the group's principal\\nrevenue-generating entity; the parent itself has no customers.\\nItem 8. Financial Statements and Supplementary Data\\nConsolidated Statements of Operations (in millions)\\nConsolidated total revenue1,200\\nLess: intercompany eliminations0\\nMeridian Logistics LLC revenue (subsidiary)300\\nHolding-company revenue (parent only)900\"\n    ]\n  }\n]"
+      }
+    ],
+    "max_tokens": 800,
+    "json_mode": true,
+    "temperature": null
+  },
+  "result": {
+    "text": "{\"results\": [{\"i\": 1, \"label\": \"supported\", \"why\": \"证据含该行及数字300\"}, {\"i\": 2, \"label\": \"supported\", \"why\": \"表中列示1200、900、300\"}]}",
+    "model": "deepseek-flash",
+    "tokens_in": 658,
+    "tokens_cached": 512,
+    "tokens_out": 56,
+    "cost_usd": 0.000114072,
+    "peak": true,
+    "latency_ms": 1026,
+    "finish_reason": "stop",
+    "created_at": "2026-11-13T06:53:51+00:00",
+    "hedged": false,
+    "hedge_won": false
+  }
+}

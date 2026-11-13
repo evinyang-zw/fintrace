@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FinTrace · 成本与延迟</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header>
+  <h1>FinTrace · 运行看板</h1>
+  <nav><a href="/">返回提问</a></nav>
+</header>
+<main>
+  <section class="card">
+    <div class="row" style="margin:0 0 12px">
+      <div class="grow">
+        <label for="days">时间窗</label>
+        <input id="days" type="text" value="7">
+      </div>
+      <button id="refresh">刷新</button>
+    </div>
+    <div class="grid" id="cards"></div>
+  </section>
+
+  <section class="card">
+    <h3 style="margin:0 0 8px">按天</h3>
+    <table>
+      <thead><tr><th>日期</th><th>请求</th><th>完成</th><th>失败</th><th>成本</th><th>p95</th></tr></thead>
+      <tbody id="daily"><tr><td colspan="6" class="muted">加载中…</td></tr></tbody>
+    </table>
+  </section>
+
+  <p class="muted" id="generated"></p>
+</main>
+<footer>成本包含 LLM 与检索（embedding / rerank）。数字来自 runs 表。</footer>
+<script src="/static/dashboard.js"></script>
+</body>
+</html>

@@ -103,6 +103,18 @@ type: ## 类型检查
 
 check: lint type test ## 提交前全量检查
 
+api: ## 本地起 API（单 worker，:8000）
+	$(UV) run uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 1
+
+gate: ## replay 评测门禁（对比 eval/baselines/smoke.json）
+	$(UV) run python scripts/eval_gate.py
+
+db-dump: ## 导出仓库（用于服务器恢复）
+	docker exec fintrace-db pg_dump -U fintrace -Fc fintrace > warehouse.dump
+
+db-restore: ## 恢复仓库：make db-restore FILE=warehouse.dump SERVICE=fintrace-prod-db-1
+	docker exec -i $${SERVICE:-fintrace-db} pg_restore -U fintrace -d fintrace --no-owner --clean --if-exists < $${FILE:-warehouse.dump}
+
 pricing: ## 校验单价表（峰谷/缓存规则 + served model 对齐）
 	$(UV) run python -m agent.pricing
 

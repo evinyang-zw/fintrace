@@ -1010,6 +1010,50 @@ class GraphAgent:
             )
         return Answer.model_validate(payload)
 
+    async def astream_answer(
+        self,
+        question: Question,
+        on_event: Callable[[str, dict[str, Any]], Any] | None = None,
+    ) -> Answer:
+        """Like ``answer`` but reports each finished node.
+
+        The API uses this for SSE progress; evaluation keeps using ``answer`` so
+        the measured path stays identical to W4.
+        """
+        graph = await self._ensure_graph()
+        trace_id, state = self._new_run(question)
+        config = self._config(trace_id)
+
+        async def run() -> dict[str, Any]:
+            async for chunk in graph.astream(state, config, stream_mode="updates"):
+                for node, update in chunk.items():
+                    if on_event is not None:
+                        result = on_event(node, update if isinstance(update, dict) else {})
+                        if asyncio.iscoroutine(result):
+                            await result
+            snapshot = await graph.aget_state(config)
+            return cast(dict[str, Any], snapshot.values)
+
+        try:
+            async with asyncio.timeout(self.config.timeout_s):
+                final = await run()
+        except TimeoutError:
+            return Answer(
+                text=f"{REFUSAL_PREFIX}：运行超时（{self.config.timeout_s}s）。",
+                refused=True,
+                refusal_reason="timeout",
+                trace_id=trace_id,
+            )
+        payload = final.get("answer")
+        if not payload:
+            return Answer(
+                text=f"{REFUSAL_PREFIX}：图未产出最终答案。",
+                refused=True,
+                refusal_reason="graph_without_answer",
+                trace_id=trace_id,
+            )
+        return Answer.model_validate(payload)
+
     async def start_review(self, question: Question) -> dict[str, Any]:
         """Run until the review interrupt (or completion) and return a handle."""
         graph = await self._ensure_graph()

@@ -27,3 +27,6 @@ reports/
 
 # ===== Editor =====
 .vscode/
+
+gate.md
+warehouse.dump
