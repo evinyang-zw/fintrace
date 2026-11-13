@@ -82,13 +82,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Copy compose file to server
+      # GHCR is too slow from the server (measured: ~15 KB/s, deploy timed out).
+      # Ship the artifact the build job already produced instead.
+      - uses: actions/download-artifact@v4
+        with:
+          name: fintrace-image-amd64
+          path: .
+
+      - name: Copy image and compose to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          source: deploy/compose.prod.yml
+          source: "fintrace-image.tar.gz,deploy/compose.prod.yml"
           target: /opt/fintrace/
           strip_components: 0
 
@@ -102,9 +109,10 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/fintrace
+            gunzip -c fintrace-image.tar.gz | docker load
             export IMAGE=ghcr.io/${{ github.repository }}:${{ github.sha }}
-            docker compose --env-file .env -f deploy/compose.prod.yml pull app mcp
-            docker compose --env-file .env -f deploy/compose.prod.yml up -d --remove-orphans
+            docker tag fintrace:${{ github.sha }} "$IMAGE"
+            docker compose --env-file .env -f deploy/compose.prod.yml up -d app mcp --remove-orphans
             for i in $(seq 1 30); do
               if curl -fsS http://127.0.0.1/api/health >/dev/null; then
                 echo "healthy after ${i} checks"
