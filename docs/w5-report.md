@@ -33,7 +33,19 @@
 | 单题成本 | 例：$0.00047（纯数值）；$0.0026–0.0031（多跳，7 次工具调用） |
 | 检索成本 | 已进 `usage.retrieval_cost_usd`；数值题不走检索时为 0（是事实，不是漏记） |
 | 数据库 | `chunks=20378`、`facts=85079`、`chunk_vectors=20373` |
-| 镜像 | `ghcr.io/evinyang-zw/fintrace:<sha>`，amd64，多阶段，非 root |
+| 镜像 | `ghcr.io/evinyang-zw/fintrace:d5bd2fe`，amd64，多阶段，非 root |
+
+### 故障演练（全部在生产环境执行）
+
+| 演练 | 操作 | 结果 |
+|---|---|---|
+| 进程中断 | 跑到一半 `docker restart app` | 该 run 立即变 `failed / interrupted by restart`，不再永远 running |
+| 工具层宕机 | `docker stop mcp` | `/api/health` → `mcp:false`；提问优雅拒答（`insufficient_evidence`），不挂 120s |
+| 预算熔断 | 日预算调到 $0.000001 | `/api/ask` → 503 `daily budget exhausted` |
+| 回滚 | 切回上一个镜像 tag | 健康检查通过；再切回新版本同样通过 |
+
+> 回滚时发现一次"镜像标签在、层没解压全"的情况（`docker load` 报了 layer NotFound 但容器还能跑）；
+> 现在 runbook 要求回滚后必须看 `/api/health` 与一次真实提问，不只看容器状态。
 
 ### 20 并发（生产环境，真实模型）
 
