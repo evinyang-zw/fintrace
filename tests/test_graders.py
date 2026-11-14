@@ -10,6 +10,8 @@ from eval.graders import (
     DeterministicJudge,
     keypoint_coverage,
     numbers_match,
+    ratio_slack_for,
+    requested_decimals,
 )
 from eval.schema import Answer, Citation, Gold, Question
 
@@ -130,3 +132,37 @@ def test_number_matrix(
     text: str, gold: float, tolerance: float, ratio: bool, expected: bool
 ) -> None:
     assert numbers_match(text, gold, tolerance, ratio=ratio)[0] is expected
+
+
+def test_requested_decimals_reads_the_question_text() -> None:
+    assert requested_decimals("保留一位小数（百分比）") == 1
+    assert requested_decimals("保留两位小数。") == 2
+    assert requested_decimals("请给出倍数") is None
+
+
+def test_ratio_slack_follows_requested_precision() -> None:
+    """``保留两位小数`` on a 0.25x ratio means 0.25 is right, not 1.4% wrong."""
+    two_dp = Question(
+        id="h-c2-004",
+        category="comparison",
+        question="苹果 FY2024 的资本开支是 Meta 的多少倍？保留两位小数。",
+        as_of=date(2025, 6, 30),
+        universe=["AAPL", "META"],
+        gold=Gold(value=0.25357, unit="ratio"),
+    )
+    slack = ratio_slack_for(two_dp)
+    assert slack == pytest.approx(0.005)
+    assert numbers_match("约 0.25 倍", 0.25357, 0.005, ratio=True, ratio_slack=slack)[0]
+    # A wrong ratio (2.53 vs 2.547, 0.66% off) must still fail: the slack is 0.005.
+    assert not numbers_match("约 2.53 倍", 2.54713, 0.005, ratio=True, ratio_slack=slack)[0]
+
+    percent = Question(
+        id="c1-006",
+        category="calculation",
+        question="营业利润率是多少？保留一位小数（百分比）。",
+        as_of=date(2025, 6, 30),
+        universe=["COST"],
+        gold=Gold(value=0.036491, unit="percent"),
+    )
+    assert ratio_slack_for(percent) == pytest.approx(0.001)
+    assert numbers_match("约 3.6%", 0.036491, 0.005, ratio=True, ratio_slack=ratio_slack_for(percent))[0]

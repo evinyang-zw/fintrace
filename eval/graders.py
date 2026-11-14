@@ -68,12 +68,20 @@ def extract_numbers(text: str) -> list[float]:
 
 
 def numbers_match(
-    text: str, gold: float, tolerance: float, *, ratio: bool = False
+    text: str,
+    gold: float,
+    tolerance: float,
+    *,
+    ratio: bool = False,
+    ratio_slack: float = 0.001,
 ) -> tuple[bool, float | None]:
     """True if any number in ``text`` is close to gold.
 
-    Ratios also accept a 0.1-percentage-point absolute slack: the question asks
-    for one decimal place, and rounding 4.1677% to 4.2% is correct, not an error.
+    Ratios also accept an absolute slack for the rounding the question asked
+    for: ``保留两位小数`` on a 0.25x ratio means 0.25 is correct, and a 0.5%
+    relative tolerance rejects it (1.4% off). The caller passes the slack that
+    matches the requested precision; 0.001 stays the one-decimal-percent
+    default so existing questions do not change behaviour.
     """
     best: float | None = None
     best_diff = float("inf")
@@ -81,9 +89,35 @@ def numbers_match(
         diff = abs(value - gold) / abs(gold) if gold else abs(value)
         if diff < best_diff:
             best_diff, best = diff, value
-        if diff <= tolerance or (ratio and abs(value - gold) <= 0.001):
+        if diff <= tolerance or (ratio and abs(value - gold) <= ratio_slack):
             return True, value
     return False, best
+
+
+_DECIMALS_RE = re.compile(r"保留\s*([一二两三四五六])位小数")
+_DECIMAL_DIGITS = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6}
+
+
+def requested_decimals(question_text: str) -> int | None:
+    match = _DECIMALS_RE.search(question_text)
+    if match is None:
+        return None
+    return _DECIMAL_DIGITS.get(match.group(1))
+
+
+def ratio_slack_for(question: Question) -> float:
+    """Half a unit of the last requested decimal, expressed in gold's unit."""
+    decimals = requested_decimals(question.question)
+    if decimals is None or question.gold is None:
+        return 0.001
+    unit = (question.gold.unit or "").lower()
+    half_unit: float = 0.5 * (10.0 ** (-decimals))
+    if unit == "percent":
+        return max(0.001, half_unit / 100)
+    if unit == "ratio":
+        # Ratios ask for two decimals today; never loosen past 0.005.
+        return min(0.005, max(0.001, half_unit))
+    return 0.001
 
 
 def _normalise(text: str) -> str:
@@ -240,6 +274,7 @@ class DeterministicJudge:
                 question.gold.value,
                 question.gold.tolerance,
                 ratio=(question.gold.unit or "").lower() in {"ratio", "percent"},
+                ratio_slack=ratio_slack_for(question),
             )
             numeric_ok = matched
             correctness = (2 if citation_score >= 1.0 else 1) if matched else 0
