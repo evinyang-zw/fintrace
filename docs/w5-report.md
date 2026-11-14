@@ -133,7 +133,7 @@ SDK 为 5.2.0（计划写 v4/OTLP，v5 同样走 OTLP），实现用显式 `host
 | C MCP HTTP + 连接池 | ✅ | `tests/test_mcp_http.py` 3 条 |
 | D 镜像 / compose | ✅ | `compose.prod.yml`；镜像 **302MB**；`make prod-up` |
 | E CI 门禁 + PR 评论 | ✅ | PR [#2](https://github.com/evinyang-zw/fintrace/pull/2)；门禁决策 8 条单测 |
-| F 部署 + 数据恢复 | ✅ | URL、`/api/health`、`runs=4x`、`chunks=20378` |
+| F 部署 + 数据恢复 | ✅ | URL、`/api/health`、30 天 64 次运行（63 done / 1 failed）、`chunks=20378` |
 | G 观测 + 成本 | ✅ | Langfuse `fintrace.run`；`by_tier` 已出现在 `/api/stats` |
 | H 压测 + runbook + 演练 | ✅ | 线上/本地 20 并发；四项演练全过 |
 
