@@ -264,9 +264,7 @@ def create_app(
         )
 
     @app.get("/api/runs/{run_id}/trace")
-    async def trace(
-        run_id: UUID, request: Request, kind: str = Depends(auth)
-    ) -> dict[str, Any]:
+    async def trace(run_id: UUID, request: Request, kind: str = Depends(auth)) -> dict[str, Any]:
         row = await request.app.state.store.get(run_id)
         if row is None:
             raise HTTPException(status_code=404, detail="run not found")
