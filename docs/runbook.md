@@ -36,6 +36,8 @@ gunzip -c image.tar.gz | docker load
 docker tag fintrace:prod ghcr.io/evinyang-zw/fintrace:manual
 export IMAGE=ghcr.io/evinyang-zw/fintrace:manual
 docker compose --env-file .env -f deploy/compose.prod.yml up -d app mcp --remove-orphans
+# 或者（等价，IMAGE 由环境变量给）：
+# IMAGE=ghcr.io/evinyang-zw/fintrace:<sha> make prod-up
 curl -fsS localhost/api/health
 ```
 
