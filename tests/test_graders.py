@@ -165,4 +165,6 @@ def test_ratio_slack_follows_requested_precision() -> None:
         gold=Gold(value=0.036491, unit="percent"),
     )
     assert ratio_slack_for(percent) == pytest.approx(0.001)
-    assert numbers_match("约 3.6%", 0.036491, 0.005, ratio=True, ratio_slack=ratio_slack_for(percent))[0]
+    assert numbers_match(
+        "约 3.6%", 0.036491, 0.005, ratio=True, ratio_slack=ratio_slack_for(percent)
+    )[0]

@@ -181,7 +181,10 @@ def main() -> None:
             f" {pct(row['false_refusal_rate'])} | ${row['cost_per_question']:.5f} |"
             f" {row['latency_p95_ms']:.0f}ms |"
         )
-    for name, key in (("Dev merged (60 x seeds)", "dev_merged"), ("50-question subset", "dev_50_subset")):
+    for name, key in (
+        ("Dev merged (60 x seeds)", "dev_merged"),
+        ("50-question subset", "dev_50_subset"),
+    ):
         block = summary.get(key)
         if not block:
             continue
@@ -192,8 +195,10 @@ def main() -> None:
         print(f"- citation support: {pct(block['citation_support'])}")
         print(f"- numeric accuracy: {pct(block['numeric_accuracy'])}")
         print(f"- false refusal: {pct(block['false_refusal_rate'])}")
-        print(f"- cost/q: ${block['cost_per_question']:.5f} (llm ${block['llm_cost_per_question']:.5f}"
-              f" + retrieval ${block['retrieval_cost_per_question']:.5f})")
+        print(
+            f"- cost/q: ${block['cost_per_question']:.5f} (llm ${block['llm_cost_per_question']:.5f}"
+            f" + retrieval ${block['retrieval_cost_per_question']:.5f})"
+        )
         print(f"- p50/p95: {block['latency_p50_ms']:.0f}/{block['latency_p95_ms']:.0f} ms")
         print("\n| category | n | scored | correctness | citation |")
         print("|---|---|---|---|---|")

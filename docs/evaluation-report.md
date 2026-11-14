@@ -1,7 +1,7 @@
 # FinTrace 评测报告（W6 定稿）
 
 > 这是简历 / README 里「评测报告」链接的落点。**结论、方法、限制、复现命令都在这一页。**
-> 指标定义见 [metrics.md](metrics.md) §11，过程记录见 [W6 报告](../../../design/w6-report.md)（研究仓），设计取舍见 [ADR](adr/)。
+> 指标定义见 [metrics.md](metrics.md) §11，过程记录见研究仓的 `w6-report.md`，设计取舍见 [ADR](adr/)。
 > 第 1 节由 `make publish-report` 自动刷新，其余手工维护。
 
 ## 0. 结论（先看这五条）
