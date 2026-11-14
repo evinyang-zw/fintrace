@@ -38,11 +38,11 @@
     "tokens_in": 1856,
     "tokens_cached": 1664,
     "tokens_out": 67,
-    "cost_usd": 0.00014798399999999998,
-    "peak": true,
-    "latency_ms": 1256,
+    "cost_usd": 7.399199999999999e-05,
+    "peak": false,
+    "latency_ms": 990,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T07:24:15+00:00",
+    "created_at": "2026-11-14T14:48:33+00:00",
     "hedged": false,
     "hedge_won": false
   }

@@ -25,16 +25,16 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"XBRL 无数据，改用正文检索 FY2024 营业收入及同比信息。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"total revenue fiscal 2024 compared to fiscal 2023 increase\", \"tickers\": [\"NORTHWIND\"], \"as_of\": \"2025-06-30\", \"k\": 8}}",
+    "text": "{\"thought\": \"XBRL 无数据，改用正文检索 FY2024 营业收入及同比信息。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"total revenue fiscal 2024 compared to fiscal 2023\", \"tickers\": [\"NORTHWIND\"], \"as_of\": \"2025-06-30\", \"k\": 8}}",
     "model": "deepseek-flash",
     "tokens_in": 1670,
     "tokens_cached": 1536,
-    "tokens_out": 82,
-    "cost_usd": 0.00014781599999999997,
-    "peak": true,
-    "latency_ms": 1021,
+    "tokens_out": 81,
+    "cost_usd": 7.3308e-05,
+    "peak": false,
+    "latency_ms": 965,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T07:24:12+00:00",
+    "created_at": "2026-11-14T14:48:32+00:00",
     "hedged": false,
     "hedge_won": false
   }

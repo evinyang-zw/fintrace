@@ -33,16 +33,16 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"检索无结果，尝试更宽泛的关键词。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"revenue\", \"tickers\": [\"NORTHWIND\"], \"as_of\": \"2025-06-30\", \"k\": 8}}",
+    "text": "{\"thought\": \"检索无结果，尝试更宽泛的关键词 revenue。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"revenue\", \"tickers\": [\"NORTHWIND\"], \"as_of\": \"2025-06-30\", \"k\": 8}}",
     "model": "deepseek-flash",
     "tokens_in": 1873,
     "tokens_cached": 1664,
-    "tokens_out": 64,
-    "cost_usd": 0.000149484,
-    "peak": true,
-    "latency_ms": 971,
+    "tokens_out": 65,
+    "cost_usd": 7.5342e-05,
+    "peak": false,
+    "latency_ms": 1001,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T07:21:37+00:00",
+    "created_at": "2026-11-14T14:48:33+00:00",
     "hedged": false,
     "hedge_won": false
   }

@@ -28,13 +28,13 @@
     "text": "{\"thought\": \"XBRL 无毛利数据，改查收入与成本，或直接检索正文。先试 revenue 看是否有结构化数据。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"HELIOS\", \"tag_query\": \"revenue\", \"as_of\": \"2025-06-30\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1666,
-    "tokens_cached": 1408,
+    "tokens_cached": 1532,
     "tokens_out": 76,
-    "cost_usd": 0.000177048,
-    "peak": true,
-    "latency_ms": 1428,
+    "cost_usd": 7.029599999999999e-05,
+    "peak": false,
+    "latency_ms": 1151,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T06:55:56+00:00",
+    "created_at": "2026-11-14T14:48:34+00:00",
     "hedged": false,
     "hedge_won": false
   }

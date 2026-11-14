@@ -25,16 +25,16 @@
     "temperature": 0.0
   },
   "result": {
-    "text": "{\"thought\": \"XBRL 无匹配，可能该公司不在结构化覆盖范围。改用正文检索营业费用。\", \"action\": \"search_filings\", \"action_input\": {\"query\": \"total operating expenses fiscal 2024\", \"tickers\": [\"NORTHWIND\"], \"as_of\": \"2025-06-30\", \"k\": 8}}",
+    "text": "{\"thought\": \"XBRL 无匹配，换更短的关键词再试一次。\", \"action\": \"xbrl_fact\", \"action_input\": {\"ticker\": \"NORTHWIND\", \"tag_query\": \"operating income\", \"as_of\": \"2025-06-30\"}}",
     "model": "deepseek-flash",
     "tokens_in": 1670,
     "tokens_cached": 1536,
-    "tokens_out": 77,
-    "cost_usd": 0.00014181599999999999,
-    "peak": true,
-    "latency_ms": 1124,
+    "tokens_out": 66,
+    "cost_usd": 6.4308e-05,
+    "peak": false,
+    "latency_ms": 712,
     "finish_reason": "stop",
-    "created_at": "2026-11-13T06:55:56+00:00",
+    "created_at": "2026-11-14T14:48:38+00:00",
     "hedged": false,
     "hedge_won": false
   }
