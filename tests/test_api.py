@@ -148,3 +148,30 @@ def test_stats(client: TestClient) -> None:
     body = client.get("/api/stats?days=7").json()
     assert body["days"] == 7
     assert "cost_per_question" in body
+
+
+def test_trace_endpoint_reads_the_run_trace(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FINTRACE_DATA_DIR", str(tmp_path))
+    (tmp_path / "traces").mkdir()
+    (tmp_path / "traces" / "fake-trace.json").write_text('{"steps": [{"index": 1}]}', "utf-8")
+
+    response = client.post(
+        "/api/ask",
+        headers=_auth(),
+        json={"question": "苹果 FY2024 总营收？", "universe": ["AAPL"]},
+    )
+    run_id = response.json()["run_id"]
+    _wait(client, run_id, "done")
+
+    trace = client.get(f"/api/runs/{run_id}/trace", headers=_auth())
+    assert trace.status_code == 200
+    assert trace.json()["steps"][0]["index"] == 1
+
+
+def test_trace_endpoint_requires_auth(client: TestClient) -> None:
+    import uuid
+
+    response = client.get(f"/api/runs/{uuid.uuid4()}/trace")
+    assert response.status_code == 401

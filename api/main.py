@@ -263,6 +263,22 @@ def create_app(
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    @app.get("/api/runs/{run_id}/trace")
+    async def trace(
+        run_id: UUID, request: Request, kind: str = Depends(auth)
+    ) -> dict[str, Any]:
+        row = await request.app.state.store.get(run_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        answer = row.get("answer") or {}
+        trace_id = str(answer.get("trace_id") or row.get("thread_id") or "")
+        if not trace_id or not re.fullmatch(r"[A-Za-z0-9._-]+", trace_id):
+            raise HTTPException(status_code=404, detail="trace id unavailable")
+        path = Path(os.environ.get("FINTRACE_DATA_DIR", "data")) / "traces" / f"{trace_id}.json"
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="trace file not found")
+        return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
+
     @app.post("/api/runs/{run_id}/review")
     async def review(
         run_id: UUID, body: ReviewRequest, request: Request, kind: str = Depends(auth)

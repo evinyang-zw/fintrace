@@ -17,6 +17,8 @@
   const answerBox = $("answer");
   const citationsBox = $("citations");
   const reviewBox = $("review-box");
+  const traceButton = $("trace-button");
+  const traceView = $("trace-view");
 
   let currentRun = null;
   let stream = null;
@@ -37,6 +39,9 @@
     reviewBox.hidden = true;
     citationsBox.innerHTML = "";
     hint.textContent = "";
+    traceView.hidden = true;
+    traceView.innerHTML = "";
+    traceButton.hidden = true;
     if (stream) { stream.close(); stream = null; }
   }
 
@@ -81,6 +86,7 @@
     const cost = usage && usage.cost_usd != null ? `$${Number(usage.cost_usd).toFixed(5)}` : "—";
     const latency = usage && usage.latency_ms ? `${(usage.latency_ms / 1000).toFixed(1)}s` : "—";
     statusLine.innerHTML = `${badges.join(" ")} <span class="muted">成本 ${cost} · LLM 耗时 ${latency}</span>`;
+    traceButton.hidden = false;
   }
 
   function escWithMarkers(raw) {
@@ -207,6 +213,27 @@
     renderAnswer(payload.answer, payload.answer.usage);
   }
 
+  async function loadTrace() {
+    if (!currentRun) return;
+    const token = tokenInput.value.trim();
+    const response = await fetch(`/api/runs/${currentRun}/trace`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) { showError("trace 不可用：可能已被清理"); return; }
+    const payload = await response.json();
+    const steps = payload.steps || [];
+    traceView.innerHTML = `<h4 style="margin:16px 0 8px">执行轨迹</h4>` +
+      `<table><thead><tr><th>#</th><th>动作</th><th>工具耗时</th><th>观察（截断）</th></tr></thead><tbody>` +
+      steps.map((step) => `<tr>
+        <td>${esc(step.index)}</td>
+        <td>${esc(step.action)}</td>
+        <td>${esc(step.tool_latency_ms)}ms</td>
+        <td class="muted">${esc(String(step.observation || "").slice(0, 160))}</td>
+      </tr>`).join("") + `</tbody></table>`;
+    traceView.hidden = false;
+  }
+
+  traceButton.onclick = loadTrace;
   askButton.onclick = ask;
   questionInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) ask();
