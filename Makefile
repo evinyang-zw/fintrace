@@ -110,7 +110,7 @@ api: ## 本地起 API（单 worker，:8000）
 	$(UV) run uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 1
 
 gate: ## replay 评测门禁（对比 eval/baselines/smoke.json）
-	$(UV) run python scripts/eval_gate.py
+	$(UV) run python -m scripts.eval_gate
 
 db-dump: ## 导出仓库（用于服务器恢复）
 	docker exec fintrace-db pg_dump -U fintrace -Fc fintrace > warehouse.dump

@@ -40,7 +40,8 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Image size
-        run: docker image inspect fintrace:${{ github.sha }} --format 'image size: {{.Size}} bytes'
+        run: |
+          docker image inspect fintrace:${{ github.sha }} --format "image size: {{.Size}} bytes"
 
       - name: Scan image (block HIGH/CRITICAL)
         uses: aquasecurity/trivy-action@v0.36.0
