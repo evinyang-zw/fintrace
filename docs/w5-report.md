@@ -15,7 +15,7 @@
 | # | 交付物 | 证据 |
 |---|---|---|
 | A 服务层 | `api/`：runs 表、队列（6 worker / 50 容量）、SSE、token、限流、日预算 | `tests/test_api.py` 6 条 |
-| B 前端 | 单页问答 + SSE + 引用 + 待审操作；`/dashboard` | http://47.96.253.123 |
+| B 前端 | 单页问答 + SSE + 引用 + 待审操作 + **trace 表格**；`/dashboard` | http://47.96.253.123 |
 | C MCP HTTP | `mcp_server --transport http` + 客户端连接池 | `tests/test_mcp_http.py` 3 条；20 并发下工具不排队 |
 | D 镜像/编排 | `deploy/Dockerfile`（多阶段、非 root、apt 安全更新）+ `compose.prod.yml`（db/mcp/app） | 线上三容器 healthy |
 | E CI 门禁 | 10 题 fixture replay + 提交基线 + 阈值 + PR 评论 | CI job `test`（见 PR 评论） |
@@ -33,7 +33,8 @@
 | 单题成本 | 7 日均值 $0.00129；纯数值题约 $0.0005，多跳题 $0.0026–0.0031 |
 | 检索成本 | 已进 `usage.retrieval_cost_usd`；数值题不走检索时为 0（是事实，不是漏记） |
 | 数据库 | `chunks=20378`、`facts=85079`、`chunk_vectors=20373` |
-| 镜像 | `ghcr.io/evinyang-zw/fintrace:0cc353d`，amd64，多阶段，非 root；302MB（目标 <500MB） |
+| trace | `GET /api/runs/{id}/trace` 返回 9 个步骤；页面有“查看 trace” |
+| 镜像 | `ghcr.io/evinyang-zw/fintrace:0289bac`，amd64，多阶段，非 root；302MB（CI `.Size`）/ 314MB（服务器 inspect），目标 <500MB |
 
 ### 故障演练（全部在生产环境执行）
 
@@ -123,8 +124,7 @@ SDK 为 5.2.0（计划写 v4/OTLP，v5 同样走 OTLP），实现用显式 `host
 
 ## 6. W5 计划审计（2026-11-14）
 
-按 `m4-w5-plan.md` 逐条核对，不是看报告自述。**8 个交付物全部落地；审计发现 9 处问题，
-8 处已修，1 处受 CI 数据约束保留并记录。**
+按 `m4-w5-plan.md` 逐条核对，不是看报告自述。**8 个交付物全部落地；审计发现 10 处问题，9 处已修，1 处受 CI 数据约束保留并记录。**
 
 | 计划项 | 状态 | 证据 |
 |---|---|---|
@@ -150,6 +150,7 @@ SDK 为 5.2.0（计划写 v4/OTLP，v5 同样走 OTLP），实现用显式 `host
 | F7 | 门禁阻断逻辑不可单测 | 中 | 已修：抽 `eval/gate.py`，8 条单测覆盖 n 缺失/引用/误拒/正确率/成本 |
 | F8 | 门禁 10 题而非计划 §8.2 的 50 题 | 中 | **未修**：CI 没有 464MB 仓库数据，只有 5 份合成文档可复现；50 题 replay 需要完整 dump（W6 夜间任务） |
 | F9 | 镜像扫描 1 个 HIGH（soupsieve 3.0.4） | 中 | 已修：升到 4.1，扫描通过 |
+| F10 | 线上看不到 trace：页面只有实时节点名，运行结束后无入口 | 中 | 已修：`GET /api/runs/{id}/trace` + 页面“查看 trace”表格；`tests/test_api.py` 2 条 |
 
 ### 6.2 仍然存在的偏差（不是缺陷，是取舍）
 
@@ -164,11 +165,11 @@ SDK 为 5.2.0（计划写 v4/OTLP，v5 同样走 OTLP），实现用显式 `host
 
 ### 6.3 审计后的验证
 
-- CI：202 tests、覆盖率 **76.22%**、lint/mypy 全绿；门禁在 PR #2 上发评论并通过。
+- CI：**204 tests**、覆盖率 **76.22%**、lint/mypy 全绿；门禁在 PR #2 上发评论并通过。
 - 部署：`release` 构建（含 trivy + SBOM + 302MB 镜像）→ artifact → 服务器，自动部署成功；
-  生产运行 `0cc353d`。
+  生产运行 `0289bac`。
 - 线上：`health` 四项全 true；检索题返回 `tiers=['dense',...]`、`retrieval_cost=4.27e-06`；
-  `/api/stats` 的 `by_tier` 有数据。
+  `/api/stats` 的 `by_tier` 有数据；`/api/runs/{id}/trace` 返回 9 个步骤，页面有入口。
 
 ## 7. 已知边界
 
