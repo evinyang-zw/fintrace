@@ -125,7 +125,11 @@ _TAG_ALIASES: dict[str, tuple[str, ...]] = {
     "net income": ("NetIncomeLoss", "ProfitLoss"),
     "operating income": ("OperatingIncomeLoss",),
     "gross profit": ("GrossProfit",),
+    "gross margin": ("GrossProfit",),
+    "operating margin": ("OperatingIncomeLoss",),
+    "net margin": ("NetIncomeLoss",),
     "research": ("ResearchAndDevelopmentExpense",),
+    "r&d": ("ResearchAndDevelopmentExpense",),
 }
 
 
@@ -375,6 +379,21 @@ def _opt_date(args: dict[str, Any], key: str) -> date | None:
         return date.fromisoformat(raw.strip())
     except ValueError as exc:
         raise ToolArgError(f"{key} must be YYYY-MM-DD, got {raw!r}") from exc
+
+
+def _normalise_fiscal_period(row: dict[str, Any]) -> tuple[int | None, str | None]:
+    """Derive FY metadata from the fact's own duration.
+
+    A full-year fact is often repeated in a later 10-Q as a comparative, and the
+    XBRL `fy`/`fp` stamped onto it belongs to *that filing* (e.g. Q3). Trusting it
+    tells the model that a full-year number is a quarter, which makes it refuse.
+    """
+    start, end = row.get("period_start"), row.get("period_end")
+    if isinstance(start, date) and isinstance(end, date):
+        days = (end - start).days
+        if 340 <= days <= 380:
+            return end.year, "FY"
+    return cast(int | None, row.get("fiscal_year")), cast(str | None, row.get("fiscal_period"))
 
 
 def _opt_int(args: dict[str, Any], key: str, default: int, low: int, high: int) -> int:
@@ -632,7 +651,7 @@ class ToolExecutor:
 
         sql = """
             WITH matched AS (
-                SELECT tag, unit, period_end, fiscal_year, fiscal_period, value,
+                SELECT tag, unit, period_start, period_end, fiscal_year, fiscal_period, value,
                        filed_at, form, accn,
                        row_number() OVER (
                            PARTITION BY tag, period_end ORDER BY filed_at DESC
@@ -702,7 +721,7 @@ class ToolExecutor:
         ordered: list[dict[str, Any]] = []
         for tag in dict.fromkeys(str(row["tag"]) for row in ranked):
             tag_rows = [row for row in ranked if str(row["tag"]) == tag]
-            annual = [row for row in tag_rows if row["fiscal_period"] == "FY"]
+            annual = [row for row in tag_rows if _normalise_fiscal_period(row)[1] == "FY"]
             if annual:
                 ordered.append(annual[0])
             ordered.extend(row for row in tag_rows if row not in annual[:1])
@@ -712,13 +731,14 @@ class ToolExecutor:
 
         matches: list[dict[str, Any]] = []
         for row in ordered:
+            fiscal_year, fiscal_period = _normalise_fiscal_period(row)
             fact = self._store.add_fact(
                 ticker=ticker,
                 tag=str(row["tag"]),
                 value=float(cast(Any, row["value"])),
                 unit=str(row["unit"]),
                 period_end=cast(date, row["period_end"]),
-                fiscal_period=cast(str | None, row["fiscal_period"]),
+                fiscal_period=fiscal_period,
             )
             matches.append(
                 {
@@ -726,9 +746,10 @@ class ToolExecutor:
                     "tag": fact.tag,
                     "value": fact.value,
                     "unit": fact.unit,
+                    "period_start": str(row["period_start"]),
                     "period_end": str(fact.period_end),
-                    "fiscal_year": row["fiscal_year"],
-                    "fiscal_period": row["fiscal_period"],
+                    "fiscal_year": fiscal_year,
+                    "fiscal_period": fiscal_period,
                     "form": row["form"],
                     "filed_at": str(row["filed_at"]),
                 }

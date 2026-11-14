@@ -13,7 +13,14 @@ from datetime import date
 import psycopg
 import pytest
 
-from agent.tools import EvidenceStore, ToolArgError, ToolExecutor, focus_snippet, safe_compute
+from agent.tools import (
+    EvidenceStore,
+    ToolArgError,
+    ToolExecutor,
+    _normalise_fiscal_period,
+    focus_snippet,
+    safe_compute,
+)
 from pipelines.config import Settings
 from pipelines.db import connect, init_schema
 from pipelines.fixtures import ingest as ingest_fixtures
@@ -261,3 +268,29 @@ def test_focus_snippet_falls_back_to_head_without_terms() -> None:
 def test_focus_snippet_is_order_independent() -> None:
     text = "alpha " * 50 + "total revenue was 100 " + "beta " * 100
     assert focus_snippet(text, "revenue total") == focus_snippet(text, "total revenue")
+
+
+def test_annual_fact_metadata_comes_from_duration() -> None:
+    """A full-year comparative repeated in a 10-Q carries that filing's fy/fp.
+
+    COST FY2024 operating income (2023-09-04..2024-09-01) also appears in a
+    2025-06-05 10-Q stamped fiscal_period=Q3; the tool used to hand that to the
+    model, which then refused a perfectly good full-year fact.
+    """
+    from datetime import date
+
+    row = {
+        "period_start": date(2023, 9, 4),
+        "period_end": date(2024, 9, 1),
+        "fiscal_year": 2025,
+        "fiscal_period": "Q3",
+    }
+    assert _normalise_fiscal_period(row) == (2024, "FY")
+
+    quarter = {
+        "period_start": date(2024, 3, 1),
+        "period_end": date(2024, 6, 1),
+        "fiscal_year": 2024,
+        "fiscal_period": "Q2",
+    }
+    assert _normalise_fiscal_period(quarter) == (2024, "Q2")

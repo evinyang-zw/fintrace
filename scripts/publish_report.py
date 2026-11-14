@@ -62,7 +62,7 @@ def _replace(text: str, start: str, end: str, block: str, path: Path) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=Path, help="raw eval report .json")
-    parser.add_argument("--dataset", type=Path, default=Path("eval/datasets/gold_v2.jsonl"))
+    parser.add_argument("--dataset", type=Path, default=Path("eval/datasets/gold_v3.jsonl"))
     parser.add_argument("--doc", type=Path, default=Path("docs/evaluation-report.md"))
     parser.add_argument("--snapshot", type=Path, help="raw eval report .md to copy")
     args = parser.parse_args()

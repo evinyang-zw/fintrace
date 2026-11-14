@@ -29,8 +29,14 @@ from pipelines.db import connect
 app = typer.Typer(add_completion=False)
 console = Console()
 
-MIN_PER_CATEGORY = 5
-MIN_TOTAL = 50
+MIN_PER_CATEGORY = 8
+MIN_TOTAL = 70
+HOLDOUT_TAG = "holdout"
+HOLDOUT_TOTAL = 10
+# Holdout questions live only where W4 actually lost points: retrieval-heavy
+# multi-hop and cross-company comparison. A holdout made of saturated categories
+# would only re-measure 100% and tell us nothing.
+HOLDOUT_CATEGORIES = {"multi_hop", "comparison"}
 
 _CITATION_RE = re.compile(
     r"^(?P<ticker>[A-Z]{1,6})/(?P<form>10-[KQ](?:/A)?)/(?P<fy>FY\d{4})#(?P<item>\d{1,2}[A-C]?)$"
@@ -46,6 +52,26 @@ def _check_structure(questions: list[Question]) -> list[str]:
 
     if len(questions) < MIN_TOTAL:
         errors.append(f"dataset has {len(questions)} questions, need >= {MIN_TOTAL}")
+
+    holdout = [q for q in questions if HOLDOUT_TAG in q.tags]
+    dev = [q for q in questions if HOLDOUT_TAG not in q.tags]
+    if len(holdout) != HOLDOUT_TOTAL:
+        errors.append(f"holdout needs {HOLDOUT_TOTAL} questions, has {len(holdout)}")
+    for q in holdout:
+        if q.category not in HOLDOUT_CATEGORIES:
+            errors.append(f"{q.id}: holdout must be multi_hop/comparison, got {q.category}")
+        if not q.required_citations:
+            errors.append(f"{q.id}: holdout needs required_citations")
+        if q.category == "multi_hop" and len(q.key_points) < 3:
+            errors.append(f"{q.id}: holdout multi_hop needs >=3 key_points")
+
+    dev_counts = Counter(q.category for q in dev)
+    for category in CATEGORY_LABELS:
+        if dev_counts[category] < MIN_PER_CATEGORY:
+            errors.append(
+                f"category {category} has {dev_counts[category]} dev questions,"
+                f" need >= {MIN_PER_CATEGORY}"
+            )
 
     counts = Counter(q.category for q in questions)
     for category in CATEGORY_LABELS:

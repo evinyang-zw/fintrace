@@ -23,7 +23,7 @@ from eval.report import write_reports
 from eval.schema import Agent, Judge, Question
 from pipelines.config import Settings
 
-DEFAULT_DATASET = Path("eval/datasets/gold_v2.jsonl")
+DEFAULT_DATASET = Path("eval/datasets/gold_v3.jsonl")
 DEFAULT_OUT = Path("reports")
 
 
@@ -127,9 +127,26 @@ def print_summary(console: Console, metrics: Metrics) -> None:
     console.print(table)
 
 
+def _split_tags(raw: str) -> set[str]:
+    return {part.strip() for part in raw.split(",") if part.strip()}
+
+
+def _filter_tags(questions: list[Question], include: str, exclude: str) -> list[Question]:
+    """Select by ``Question.tags`` so holdout stays a tagging decision, not a file split."""
+    wanted = _split_tags(include)
+    blocked = _split_tags(exclude)
+    if wanted:
+        questions = [q for q in questions if wanted & set(q.tags)]
+    if blocked:
+        questions = [q for q in questions if not blocked & set(q.tags)]
+    return questions
+
+
 @app.command()
 def main(
     dataset: Path = typer.Option(DEFAULT_DATASET, help="golden dataset (jsonl)"),
+    tags: str = typer.Option("", help="只跑带这些 tag 的题（逗号分隔）"),
+    exclude_tags: str = typer.Option("", help="排除带这些 tag 的题（逗号分隔）"),
     agent: str = typer.Option("null", help="agent name"),
     judge: str = typer.Option("deterministic", help="judge name"),
     limit: int = typer.Option(0, help="只跑前 N 题，0 为全部"),
@@ -146,6 +163,7 @@ def main(
         raise typer.BadParameter(f"dataset not found: {dataset}")
 
     questions = load_dataset(dataset)
+    questions = _filter_tags(questions, tags, exclude_tags)
     if limit:
         questions = questions[:limit]
     if not questions:

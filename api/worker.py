@@ -141,20 +141,22 @@ class WorkerPool:
                 self._trace(run_id, question, None, None, "failed", "no answer")
                 self._bus.publish(run_id, {"type": "failed", "error": "no answer"})
                 return
-            await self._finish(run_id, answer)
+            await self._finish(run_id, question, answer)
             return
 
         async def on_event(node: str, _update: dict[str, Any]) -> None:
             self._bus.publish(run_id, {"type": "node", "node": node})
 
         answer = await self._agent.astream_answer(question, on_event)
-        await self._finish(run_id, answer)
+        await self._finish(run_id, question, answer)
 
-    async def _finish(self, run_id: str, answer: Answer) -> None:
+    async def _finish(self, run_id: str, question: Question, answer: Answer) -> None:
         payload = answer.model_dump(mode="json")
         usage = answer.usage.model_dump(mode="json")
         await self._store.finish(_uuid(run_id), payload, usage)
-        self._trace(run_id, answer, payload, usage, "done", None)
+        # The tracer derives the Langfuse *input* from the question. Passing the
+        # Answer here (as W5 did) yields an empty input: Answer has no .question.
+        self._trace(run_id, question, payload, usage, "done", None)
         self._bus.publish(
             run_id,
             {
