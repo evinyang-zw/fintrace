@@ -34,7 +34,7 @@
 | 检索成本 | 已进 `usage.retrieval_cost_usd`；数值题不走检索时为 0（是事实，不是漏记） |
 | 数据库 | `chunks=20378`、`facts=85079`、`chunk_vectors=20373` |
 | trace | `GET /api/runs/{id}/trace` 返回 9 个步骤；页面有“查看 trace” |
-| 镜像 | `ghcr.io/evinyang-zw/fintrace:0289bac`，amd64，多阶段，非 root；302MB（CI `.Size`）/ 314MB（服务器 inspect），目标 <500MB |
+| 镜像 | `ghcr.io/evinyang-zw/fintrace:3afd7b0`（审计时；后续 docs-only 提交会推进 tag，代码相同），amd64，多阶段，非 root；302MB（CI `.Size`）/ 314MB（服务器 inspect），目标 <500MB |
 
 ### 故障演练（全部在生产环境执行）
 
@@ -167,7 +167,7 @@ SDK 为 5.2.0（计划写 v4/OTLP，v5 同样走 OTLP），实现用显式 `host
 
 - CI：**204 tests**、覆盖率 **76.22%**、lint/mypy 全绿；门禁在 PR #2 上发评论并通过。
 - 部署：`release` 构建（含 trivy + SBOM + 302MB 镜像）→ artifact → 服务器，自动部署成功；
-  生产运行 `0289bac`。
+  生产运行 `3afd7b0`（trace 功能合入 `0289bac`，`3afd7b0` 只有格式化差异）。
 - 线上：`health` 四项全 true；检索题返回 `tiers=['dense',...]`、`retrieval_cost=4.27e-06`；
   `/api/stats` 的 `by_tier` 有数据；`/api/runs/{id}/trace` 返回 9 个步骤，页面有入口。
 
