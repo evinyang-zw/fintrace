@@ -29,6 +29,10 @@
       <td>${row.failed}</td><td>$${row.cost.toFixed(4)}</td>
       <td>${(row.p95_ms / 1000).toFixed(1)}s</td></tr>`).join("")
       || '<tr><td colspan="6" class="muted">窗口内还没有运行记录。</td></tr>';
+    $("tiers").innerHTML = (data.by_tier || []).map((row) => `<tr>
+      <td>${esc(row.tier)}</td><td>${row.n}</td>
+      <td>$${row.avg_cost.toFixed(5)}</td><td>${(row.p95_ms / 1000).toFixed(1)}s</td></tr>`).join("")
+      || '<tr><td colspan="4" class="muted">窗口内没有带检索的运行。</td></tr>';
     $("generated").textContent = `生成于 ${data.generated_at}`;
   }
 

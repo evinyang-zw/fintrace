@@ -18,6 +18,9 @@ install: ## 安装/同步依赖
 up: ## 启动 Postgres（pgvector）
 	docker compose up -d --wait db
 
+prod-up: ## 起生产栈：IMAGE=ghcr.io/...:<sha> make prod-up
+	IMAGE=$${IMAGE:?set IMAGE=ghcr.io/evinyang-zw/fintrace:<sha>} docker compose --env-file .env -f deploy/compose.prod.yml up -d
+
 down: ## 停止并移除容器
 	docker compose down
 
@@ -63,7 +66,7 @@ hedge-bench: ## 用本地假服务验证对冲请求（10s 慢调用 -> 1s）
 citation-annotation: ## 生成 30 条引用 claim 盲标包
 	PYTHONPATH=. $(UV) run python scripts/citation_pack.py
 
-citation-kappa: ## 引用校验器的人工 κ（需先填 citation_labels.csv）
+citation-kappa api gate db-dump db-restore prod-up: ## 引用校验器的人工 κ（需先填 citation_labels.csv）
 	PYTHONPATH=. $(UV) run python scripts/citation_kappa.py
 
 ask: ## 问一个临时问题：make ask Q="苹果 FY2024 营收？" UNIVERSE=AAPL
@@ -121,4 +124,4 @@ pricing: ## 校验单价表（峰谷/缓存规则 + served model 对齐）
 publish-report: ## 刷新评测报告 provenance / 快照（ARGS="--report ... --snapshot ..."）
 	$(UV) run python scripts/publish_report.py $(ARGS)
 
-.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask graph-ask resume compare compare-agents trace test lint fmt type check pricing publish-report embed embed-smoke rerank-smoke ablate annotation kappa hedge-bench citation-annotation citation-kappa
+.PHONY: help install up down psql universe stats ingest ingest-fixtures q-check eval ask graph-ask resume compare compare-agents trace test lint fmt type check pricing publish-report embed embed-smoke rerank-smoke ablate annotation kappa hedge-bench citation-annotation citation-kappa api gate db-dump db-restore prod-up

@@ -203,8 +203,47 @@ class RunStore:
         )
         data["days"] = days
         data["daily"] = await self.daily_stats(days)
+        data["by_tier"] = await self.tier_stats(days)
         data["generated_at"] = datetime.now(UTC).isoformat(timespec="seconds")
         return data
+
+    async def tier_stats(self, days: int) -> list[dict[str, Any]]:
+        """Cost/latency per retrieval tier, one row per run (not per search call)."""
+        async with self._pool.connection() as conn:
+            rows = await (
+                await conn.execute(
+                    """
+                    SELECT tier,
+                           count(*) AS n,
+                           coalesce(avg(cost), 0) AS avg_cost,
+                           percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95_ms
+                    FROM (
+                        SELECT DISTINCT runs.id,
+                               item->>'tier' AS tier,
+                               (runs.usage->>'cost_usd')::float8 AS cost,
+                               extract(epoch FROM (runs.finished_at - runs.started_at)) * 1000
+                                   AS latency_ms
+                        FROM runs
+                        CROSS JOIN LATERAL jsonb_array_elements(
+                            coalesce(runs.answer->'retrieval', '[]'::jsonb)
+                        ) AS item
+                        WHERE runs.status = 'done'
+                          AND runs.queued_at > now() - make_interval(days => %s)
+                    ) per_run
+                    GROUP BY tier ORDER BY n DESC
+                    """,
+                    (days,),
+                )
+            ).fetchall()
+        return [
+            {
+                "tier": str(row["tier"]),
+                "n": int(row["n"]),
+                "avg_cost": float(row["avg_cost"] or 0.0),
+                "p95_ms": float(row["p95_ms"] or 0.0),
+            }
+            for row in cast(list[dict[str, Any]], rows)
+        ]
 
     async def daily_stats(self, days: int) -> list[dict[str, Any]]:
         async with self._pool.connection() as conn:

@@ -308,10 +308,12 @@ def create_app(
                     mcp_ok = (await client.get(f"{base}/health")).status_code == 200
             except Exception:
                 mcp_ok = False
+        llm_ok = bool(os.environ.get("LLM_API_KEY") or os.environ.get("DEEPSEEK_API_KEY"))
         return {
             "ok": db_ok and (mcp_ok is not False),
             "db": db_ok,
             "mcp": mcp_ok,
+            "llm": llm_ok,
             "queue_depth": state.pool.depth,
             "queue_capacity": state.pool.capacity,
             "budget_spent_usd": round(await state.store.today_spend(), 6),

@@ -46,6 +46,13 @@ def _call(tool: str, args: dict[str, Any]) -> dict[str, Any]:
         "observation": outcome.to_observation(),
         "handles": [handle_record(h) for h in store.handles.values()],
         "facts": [fact_record(f) for f in store.facts.values()],
+        # Retrieval bookkeeping must cross the process boundary too; otherwise
+        # Answer.retrieval is empty in production and recall/tier dashboards lie.
+        "search_calls": list(store.search_calls),
+        "usage": {
+            "embedding_tokens": store.embedding_tokens,
+            "rerank_tokens": store.rerank_tokens,
+        },
     }
 
 

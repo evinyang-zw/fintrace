@@ -45,7 +45,6 @@ from agent.prompts import (
 )
 from agent.react import REFUSAL_PREFIX, parse_action
 from agent.retrieval import Retriever
-from agent.review_queue import dequeue, enqueue
 from agent.tools import (
     TOOL_SPECS,
     EvidenceStore,
@@ -555,17 +554,6 @@ def build_nodes(deps: GraphDeps) -> dict[str, Callable[..., Any]]:
             "verification": verdict,
             "trace_id": state.get("trace_id"),
         }
-        try:
-            await asyncio.to_thread(
-                enqueue,
-                deps.settings.database_url,
-                thread_id=str(state.get("trace_id") or ""),
-                question_id=str((state.get("question") or {}).get("id") or ""),
-                draft=str((state.get("draft") or {}).get("text") or ""),
-                verification=verdict,
-            )
-        except Exception as exc:  # the queue is a convenience, not a dependency
-            print(f"warning: could not enqueue review: {exc}")
         decision = interrupt(payload)
         if isinstance(decision, dict):
             action = str(decision.get("action", "approve"))
@@ -656,12 +644,6 @@ def build_nodes(deps: GraphDeps) -> dict[str, Callable[..., Any]]:
                 "usage": usage,
             },
         )
-        try:
-            await asyncio.to_thread(
-                dequeue, deps.settings.database_url, str(state.get("trace_id") or "")
-            )
-        except Exception as exc:  # the queue is a convenience, not a dependency
-            print(f"warning: could not dequeue review: {exc}")
         store = store_from_state(merged)
         answer = _build_answer(merged, store, status)
         traced = cast(

@@ -44,6 +44,22 @@ make gate                     # replay 评测门禁（对比 eval/baselines/smok
 make db-dump                  # 导出仓库（服务器恢复用）
 ```
 
+## 架构（W5）
+
+```
+浏览器 ──HTTP / SSE──┐
+                     ▼
+              app  (FastAPI, :8000)
+              ├── runs 表 / 队列（6 worker）/ SSE / token / 限流 / 日预算
+              ├── LangGraph agent（verify → repair → review）
+              │        └── MCP over HTTP ──► mcp (:8001, 只读) ──► Postgres + pgvector
+              └── Langfuse（每次运行一个 span）
+```
+
+- app 与 mcp 是同一镜像的两个入口；数据库独立容器，数据用 dump/restore 搬。
+- 队列、SSE、限流都在 app 进程内，所以 `--workers 1`；要横向扩展先换 Redis。
+- 部署与回滚见 [docs/runbook.md](docs/runbook.md)。
+
 ## W3 检索栈（2026-10-30）
 
 `chunk_vectors`（独立表，带模型名）+ 三档检索，缺 key 或缺向量时**显式降级**：

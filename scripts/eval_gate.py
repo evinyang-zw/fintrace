@@ -16,16 +16,12 @@ from typing import Any
 
 import typer
 
+from eval.gate import evaluate, pct
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = Path("eval/datasets/smoke.jsonl")
 DEFAULT_BASELINE = Path("eval/baselines/smoke.json")
 DEFAULT_OUT = Path("reports/gate")
-
-# A block means "do not merge"; a warning is shown but does not fail the build.
-CITATION_DROP_BLOCK = 0.02
-FALSE_REFUSAL_RISE_BLOCK = 0.05
-CORRECTNESS_DROP_WARN = 0.05
-COST_RISE_WARN = 0.30
 
 app = typer.Typer(add_completion=False)
 
@@ -73,28 +69,14 @@ def _load(path: Path) -> dict[str, Any]:
     }
 
 
-def _pct(value: float) -> str:
-    return f"{value * 100:.1f}%"
-
-
 def render_markdown(
     base: dict[str, Any], cur: dict[str, Any], blocks: list[str], warns: list[str]
 ) -> str:
     bm, cm = base["metrics"], cur["metrics"]
     rows = [
-        ("正确率", bm.get("correctness", 0), cm.get("correctness", 0), CORRECTNESS_DROP_WARN),
-        (
-            "引用支撑率",
-            bm.get("citation_support", 0),
-            cm.get("citation_support", 0),
-            CITATION_DROP_BLOCK,
-        ),
-        (
-            "误拒率",
-            bm.get("false_refusal_rate", 0),
-            cm.get("false_refusal_rate", 0),
-            FALSE_REFUSAL_RISE_BLOCK,
-        ),
+        ("正确率", bm.get("correctness", 0), cm.get("correctness", 0)),
+        ("引用支撑率", bm.get("citation_support", 0), cm.get("citation_support", 0)),
+        ("误拒率", bm.get("false_refusal_rate", 0), cm.get("false_refusal_rate", 0)),
     ]
     lines = [
         "### FinTrace eval gate",
@@ -105,10 +87,10 @@ def render_markdown(
         "| 指标 | 基线 | 本次 | Δ |",
         "|---|---|---|---|",
     ]
-    for label, before, after, _threshold in rows:
+    for label, before, after in rows:
         delta = after - before
         sign = "+" if delta >= 0 else ""
-        lines.append(f"| {label} | {_pct(before)} | {_pct(after)} | {sign}{delta * 100:.1f}pt |")
+        lines.append(f"| {label} | {pct(before)} | {pct(after)} | {sign}{delta * 100:.1f}pt |")
     cost_before = bm.get("cost_per_question", 0)
     cost_after = cm.get("cost_per_question", 0)
     lines.append(f"| 单题成本 | ${cost_before:.5f} | ${cost_after:.5f} | — |")
@@ -143,32 +125,13 @@ def main(
     base = _load(baseline)
     bm, cm = base["metrics"], current["metrics"]
 
-    blocks: list[str] = []
-    warns: list[str] = []
-    if int(cm.get("n") or 0) != int(bm.get("n") or 0):
-        blocks.append(f"replay incomplete: n={cm.get('n')} vs baseline {bm.get('n')}")
-    if cm.get("citation_support", 0) <= bm.get("citation_support", 0) - CITATION_DROP_BLOCK:
-        blocks.append(
-            f"引用支撑率 {_pct(bm.get('citation_support', 0))} → {_pct(cm.get('citation_support', 0))}"
-        )
-    if (
-        cm.get("false_refusal_rate", 0)
-        >= bm.get("false_refusal_rate", 0) + FALSE_REFUSAL_RISE_BLOCK
-    ):
-        blocks.append(
-            f"误拒率 {_pct(bm.get('false_refusal_rate', 0))} → {_pct(cm.get('false_refusal_rate', 0))}"
-        )
-    if cm.get("correctness", 0) <= bm.get("correctness", 0) - CORRECTNESS_DROP_WARN:
-        warns.append(f"正确率 {_pct(bm.get('correctness', 0))} → {_pct(cm.get('correctness', 0))}")
-    if cm.get("cost_per_question", 0) >= bm.get("cost_per_question", 0) * (1 + COST_RISE_WARN):
-        warns.append(
-            f"单题成本 ${bm.get('cost_per_question', 0):.5f} → ${cm.get('cost_per_question', 0):.5f}"
-        )
+    decision = evaluate(bm, cm)
+    blocks, warns = decision.blocks, decision.warns
 
     body = render_markdown(base, current, blocks, warns)
     markdown.write_text(body + "\n", encoding="utf-8")
     print(body)
-    if blocks:
+    if decision.blocked:
         raise SystemExit(1)
 
 

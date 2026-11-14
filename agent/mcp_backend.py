@@ -83,6 +83,12 @@ def _payload_to_result(payload: dict[str, Any], store: EvidenceStore) -> Backend
         )
         mapping[str(record["name"])] = fact.name
 
+    for call in payload.get("search_calls") or []:
+        store.search_calls.append(dict(call))
+    usage = payload.get("usage") or {}
+    store.embedding_tokens += int(usage.get("embedding_tokens") or 0)
+    store.rerank_tokens += int(usage.get("rerank_tokens") or 0)
+
     observation = _remap(str(payload.get("observation", "")), mapping)
     return BackendResult(bool(payload.get("ok")), payload.get("code"), observation)
 
