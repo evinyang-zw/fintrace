@@ -4,7 +4,7 @@
 > 中文提问 → 在美股公开财报里检索、计算、交叉验证 → 输出逐句引用的研究简报；证据不足时明确拒答。
 
 [![ci](https://github.com/evinyang-zw/fintrace/actions/workflows/ci.yml/badge.svg)](https://github.com/evinyang-zw/fintrace/actions/workflows/ci.yml)
-[在线 Demo](http://47.96.253.123) · [评测报告](docs/evaluation-report.md) · [5 分钟演示脚本](docs/demo-script-w6.md) · [架构决策](docs/adr/)
+[在线 Demo](http://47.96.253.123) · [评测报告](docs/evaluation-report.md) · [文章](https://juejin.cn/post/7708058421903671346) · [5 分钟演示](https://www.bilibili.com/video/BV1pQsi66EYw/) · [架构决策](docs/adr/)
 
 ## 结果
 
@@ -32,12 +32,17 @@
 2. **引用假**（引了一段相关但不支撑的段落）→ 引用粒度为字符区间 `[K#]`，claim 级语义校验；判官用 60 条盲标校准，加权 κ=0.795。
 3. **该拒却编**（问财报里没有的东西）→ 8 道不可答题全部正确拒答；单题预算与工具超时保证它"优雅地不知道"。
 
+## 文章
+
+- [从 56% 到 95%：财报 Agent 的引用校验是怎么做对的](https://juejin.cn/post/7708058421903671346)（[知乎](https://zhuanlan.zhihu.com/p/2105602589509394466)）
+- [我没有凑到 100 道题：一个 Agent 评测集的取舍](https://juejin.cn/post/7707979038879973427)（[知乎](https://zhuanlan.zhihu.com/p/2105606478245672599)）
+
 ## 在线 Demo
 
 **http://47.96.253.123** —— 阿里云 2C4G、单实例 Docker Compose。
 
 - 演示需要口令（防滥用，每日配额与预算兜底）：**联系我获取**；`/dashboard` 只读，无需口令。
-- 5 分钟演示：录屏脚本见 [`docs/demo-script-w6.md`](docs/demo-script-w6.md)（成片待录，W6 唯一未完成的交付物）。
+- 5 分钟演示：[B 站 · FinTrace-W6-demo](https://www.bilibili.com/video/BV1pQsi66EYw/)（4 分 26 秒）；脚本文稿与 macOS 录制手册见 [`docs/demo-script-w6.md`](docs/demo-script-w6.md)。
 - 服务层：FastAPI + 队列（6 worker / 50 容量）+ SSE + 人工待审；app 与 MCP 工具是两个容器。
 
 ## 架构
@@ -90,7 +95,7 @@ make eval AGENT=graph JUDGE=llm ARGS="--tags holdout"   # 一次性 holdout
 - 判官 κ=0.795、引用 checker κ=0.634：相对趋势可信，单题绝对值不宜当精确测量。
 - 线上只做 smoke 与并发压测，70 题评测在本地跑。
 
-完整限制与失败案例见[评测报告 §6](docs/evaluation-report.md) 与[两篇文章](docs/articles/)。
+完整限制与失败案例见[评测报告 §6](docs/evaluation-report.md)、[引用校验复盘](https://juejin.cn/post/7708058421903671346)与[评测集取舍](https://juejin.cn/post/7707979038879973427)。
 
 ## 工程
 
