@@ -15,11 +15,12 @@
 | 答案正确率 | 95.0% | 98.9% `[97.2, 100]` | **99.0%** `[97.6, 100]` | **95.0%** `[85.0, 100.0]` |
 | 引用语义支撑率 | 94.4% | 98.1% | **98.4%** | 91.8% |
 | 数值准确率 | — | 98.3% | 98.7% | 100% |
-| 误拒率 | ~5% | 0.0% | **0.0%** | 5.0% |
+| 误拒率 | ≈4% | 0.0% | **0.0%** | 5.0% |
 | 单题成本 | $0.00065 | $0.00060 | **$0.00059** | $0.00103 |
 | p95 延迟 | 13.0–14.3s | 13.1s | **12.6s** | 14.4s |
 
-- 50 子集与 W4 **同题可对照**；60 开发集题变了，只能描述；holdout 只跑过一次。
+- 50 子集与 W4 **同题可对照**（Δ = 该列 − W4 列，唯一可配对比较的口径）；60 开发集题变了，只能描述；holdout 只跑过一次。
+- `[..]` 为配对 bootstrap 的 95% CI（1000 次）；W4 的误拒率未在报告中单列，表中 `≈4%` 来自可见的两个 seed（2.2% / 4.4%）。
 - W6 相对 W4 只改了工具与判分器（XBRL 财年元数据、别名、比率容差），agent 编排未变。
 - holdout 唯一失败：AMZN 分部表的一题在一次运行里被拒答——**表格类多跳仍是弱点**。
 - 完整口径：[评测报告](docs/evaluation-report.md) · 指标定义：[metrics.md](docs/metrics.md) §11。
@@ -47,18 +48,61 @@
 
 ## 架构
 
+主设计文档画的是目标形态；这张图是**当前实现**——哪里有裁剪，下面逐条列出，避免"设计图比代码好看"。
+
 ```
-浏览器 ──HTTP / SSE──┐
-                     ▼
-              app  (FastAPI, :8000)
-              ├── runs 表 / 队列 / SSE / token / 限流 / 日预算
-              ├── LangGraph agent（agent → tools → verify → repair → review → finalize）
-              │        └── MCP over HTTP ──► mcp (:8001, 只读) ──► Postgres + pgvector
-              └── Langfuse（每次运行一个 trace span）
+浏览器 ──HTTP / SSE──► app (FastAPI :8000)
+                       ├─ 鉴权（demo / 完整 token）· 限流 · 日预算 · runs 表
+                       ├─ 进程内队列（6 worker / 容量 50）──► LangGraph
+                       │     agent ⇄ tools → verify → repair → review
+                       │     Postgres checkpointer · interrupt 可恢复
+                       ├─ 检索（bm25 / dense / hybrid / hybrid_rerank + RRF）
+                       └─ Langfuse run span（可选；缺 key 自动关闭）
+                                 │ MCP over streamable HTTP（5s 超时）
+                          ┌──────▼──────┐
+                          │ mcp :8001   │  search_filings · get_section
+                          │ 只读独立进程 │  xbrl_fact · compute
+                          └──────┬──────┘
+                                 ▼
+                  Postgres + pgvector
+                  （filings · sections · facts · chunks · runs · checkpoints）
+
+离线平面
+  EDGAR ──► 解析（HTML/iXBRL）──► sections / chunks / facts ──► 向量化 ──► pgvector
+  eval/ ──► 70 题金标 ──► graph / react / null agent ──► 判官 + 引用校验 ──► reports/ ──► CI 门禁
 ```
 
-LangGraph 的图是**编排骨架**，不是固定流水线：内层仍由模型自己决定查哪一节、取哪个 tag；
-`verify → repair` 是 W4 新增的生成时校验，`review` 是人工中断（Postgres checkpoint，换进程可恢复）。
+**分层与代码**
+
+| 层 | 代码 | 职责 |
+|---|---|---|
+| Web | `api/static/`（单页 + dashboard）、`web/`（Streamlit trace 回看） | 提问/流式状态、成本延迟看板、逐 step 回看引用 |
+| API | `api/main.py` | REST + SSE、鉴权、限流、日预算、run 生命周期、人工复核 |
+| 执行 | `api/worker.py` | 进程内队列；超时/步数/预算守卫；SSE 事件 |
+| 编排 | `agent/graph/` | LangGraph：agent ⇄ tools → verify → repair → review → finalize；salvage 兜底 |
+| 工具 | `agent/tools.py` + `mcp_server/` | 4 个只读工具，独立进程；stdio 供本地测试与回放 |
+| 检索 | `agent/retrieval.py`、`agent/rerank.py` | bm25 / dense / hybrid / hybrid_rerank 四档 + RRF(k=60) + 可选重排；filed_at 时点过滤；精确 span |
+| 数据 | `pipelines/`、`api/schema.sql` | EDGAR 摄取 → section/chunk/XBRL fact → pgvector |
+| 观测 | `api/observability.py`、`agent/trace.py` | Langfuse run span（input/output/成本/延迟）+ 本地 JSON trace |
+| 评测 | `eval/`、`scripts/` | 不在服务路径：runner、判官、citation checker、指标、CI gate |
+
+**一次提问经过什么**
+
+1. `POST /api/ask`：token → 限流 → 日预算 → 入队，返回 `202 {run_id}`；
+2. worker 跑图：模型决定调哪个工具，工具经 MCP 到只读进程；检索结果带 `(accession, section, char_start, char_end)`；
+3. `verify`：数字对账 + 引用支撑 + 拒答策略；不过则 `repair`（最多 2 轮，带预算守卫）；
+4. `review`：需要人工确认时 `interrupt`，状态进 Postgres，`POST /api/runs/{id}/review` 可在新进程恢复；
+5. `finalize`：写 runs 表、SSE 推送、写 JSON trace、发 Langfuse span（如果启用）。
+
+**与主设计的差异（记账，不假装）**
+
+- **队列在进程内**（6 worker / 50 容量），没有 Redis；所以线上 `--workers 1`、单实例，横向扩展要先换队列。
+- **trace 落本地 `data/traces/*.json`**，没有对象存储；多实例时再换 S3/OSS。
+- **MCP 工具 4 个**：`search_filings / get_section / xbrl_fact / compute`；设计里的 `make_chart` 没做（图表不在判分点）。
+- **Langfuse 是 run 级 span**，不是逐 generation；缺 key 自动关闭，不影响答案。
+- **评测看板没做**：设计里的 Web Eval 看板未实现；评测结果在 `reports/` 与 CI 门禁评论里，`/dashboard` 只展示成本/延迟/按检索档位。
+- **检索没有 HNSW**：约 2 万 chunk 走精确扫描；W5 实测工具 p95 是 compute 20ms / get_section 43ms / xbrl_fact 333ms，不是瓶颈（尾巴在 LLM）。数据量再大再换 ANN。
+- **没有 HTTPS**：保留 `http://`，大陆节点 80/443 需备案（W6 偏差记录）。
 
 ## 三个关键决策
 
@@ -99,7 +143,7 @@ make eval AGENT=graph JUDGE=llm ARGS="--tags holdout"   # 一次性 holdout
 
 ## 工程
 
-- **208 tests**、覆盖率 **76%**、ruff + mypy strict、CI 不依赖网络（cassette 回放）。
+- **210 tests**、覆盖率 **76%**、ruff + mypy strict、CI 不依赖网络（cassette 回放）。
 - 线上：**20 并发 20/20 成功，0 个 5xx**，端到端 p95 28.6s，队列等待 p95 16.2s；30 天 64 次运行 63 done / 1 failed。
 - 镜像 302MB、非 root、trivy HIGH/CRITICAL 阻断；部署/回滚/密钥轮换/DB 恢复见 [runbook](docs/runbook.md)。
 
@@ -128,8 +172,8 @@ agent/          图编排、工具、检索、MCP 客户端、trace
 mcp_server/     4 个只读工具（独立进程，streamable HTTP）
 api/            FastAPI 服务、队列/SSE/鉴权/限流/预算
 eval/           问题 schema、判官、citation checker、指标、CI gate
-web/            单页前端 + trace 回看
+web/            Streamlit trace 回看（单页前端在 api/static/）
 docs/           评测报告、ADR、runbook、文章、各周报告
 deploy/         Dockerfile、compose.prod.yml
-tests/          208 个测试（CI 不联网）
+tests/          210 个测试（CI 不联网）
 ```
